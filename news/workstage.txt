@@ -1,0 +1,7 @@
+# Create venv
+python3.10 -m venv venv
+
+# Install librarys
+pip install --upgrade pip
+pip install pandas bs4 selenium webdriver_manager keybert matplotlib
+pip install "torch==2.2.2" "transformers<4.39" "sentence-transformers<3"
