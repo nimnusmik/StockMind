@@ -295,5 +295,7 @@ data/
 
 # logs and temp files 
 logs/
+/Users/sunminkim/Desktop/AIStages/StockMind/community/src/original_clean_log.py
+/Users/sunminkim/Desktop/AIStages/StockMind/community/src/original.py
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,visualstudiocode,windows,vim,python
