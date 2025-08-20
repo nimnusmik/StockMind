@@ -290,7 +290,10 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# csv
-.csv
+# crawling data
+data/
+
+# logs and temp files 
+logs/
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,visualstudiocode,windows,vim,python
