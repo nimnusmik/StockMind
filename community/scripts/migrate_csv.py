@@ -1,4 +1,12 @@
 # CSV → DB 마이그레이션
+"""
+CSV: time → PostgreSQL: timestamp
+CSV: text → PostgreSQL: content
+CSV: stock_symbol → PostgreSQL: symbol
+CSV: (없음) → PostgreSQL: id (해시 생성)
+CSV: (없음) → PostgreSQL: user ("unknown" 또는 추가 크롤링)
+"""
+
 import pandas as pd
 import hashlib
 import os
@@ -30,7 +38,7 @@ def migrate_csv_to_db(csv_file, symbol):
 if __name__ == "__main__":
     symbols = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
     for symbol in symbols:
-        csv_file = f"data/{symbol}_comments_202507.csv"
+        csv_file = f"data/{symbol}_comments_202508.csv"
         if os.path.exists(csv_file):
             migrate_csv_to_db(csv_file, symbol)
         else:

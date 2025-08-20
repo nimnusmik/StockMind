@@ -1,1 +1,0 @@
-# DB 저장 로직 (PostgreSQL)
