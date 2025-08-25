@@ -4,6 +4,9 @@ from datetime import datetime
 import os
 import pandas as pd
 from playwright.sync_api import sync_playwright
+import psycopg2
+from psycopg2.extras import execute_batch
+import hashlib
 from config import stocks, output_dir, logs_base_dir, user_agents, cutoff_date
 from logger import setup_logger
 from utils import wait_for_element, wait_for_comments_frame, scroll_and_wait, is_after_cutoff
@@ -35,6 +38,7 @@ class MultiStockYahooFinanceCrawler:
         self.context = None
         self.page = None
         self.setup_context()
+        self.connect_db()  # DB 연결 초기화
 
     def setup_context(self):
         if self.context:
@@ -48,6 +52,22 @@ class MultiStockYahooFinanceCrawler:
         )
         self.page = self.context.new_page()
         self.page.set_default_timeout(30000)
+
+    def connect_db(self):
+        try:
+            self.db_engine = psycopg2.connect(
+                dbname="stockmind",
+                user="user",
+                password="password",
+                host="db",  # Docker Compose 서비스 이름
+                port="5432"
+            )
+            print("✅ PostgreSQL 연결 성공")
+
+        except Exception as e:
+            print(f"❌ PostgreSQL 연결 실패: {e}")
+            self.db_engine = None
+
 
     def sort_comments_by_newest(self, target_frame, logger):
         try:
@@ -134,6 +154,10 @@ class MultiStockYahooFinanceCrawler:
         max_no_new_comments = 10
         rounds = 0
         
+        current_month = datetime.now().strftime("%Y%m")
+        filename = f"{stock_symbol}_comments_{current_month}.csv"
+        filepath = os.path.join(self.output_dir, filename)
+        
         logger.info("🚀 최적화된 댓글 수집 시작...")
         logger.info(f"📊 배치 크기: {batch_size}, 최대 연속 오래된 댓글: {max_consecutive_old}")
         
@@ -149,9 +173,11 @@ class MultiStockYahooFinanceCrawler:
             if not new_comments:
                 logger.info("⏳ 새 댓글이 없습니다. Show More 시도...")
                 no_new_comments_count += 1
+                
                 if no_new_comments_count >= max_no_new_comments:
                     logger.info(f"💀 연속 {no_new_comments_count}번 새 댓글 없음, 수집 종료")
                     break
+            
             else:
                 logger.info(f"🆕 새 댓글 {len(new_comments)}개 처리 중...")
                 no_new_comments_count = 0
@@ -171,7 +197,11 @@ class MultiStockYahooFinanceCrawler:
                             continue
                         seen_ids.add(comment_id)
                         if is_after_cutoff(time_str, self.cutoff_date):
-                            collected.append({"time": time_str, "text": text_str})
+                            collected.append({
+                                "time": time_str,
+                                "text": text_str,
+                                "stock_symbol": stock_symbol
+                            })
                             logger.info(f"✅ 수집 ({len(collected)}): {time_str}")
                             consecutive_old_comments = 0
                         else:
@@ -187,16 +217,30 @@ class MultiStockYahooFinanceCrawler:
                 last_processed_index = min(last_processed_index + batch_size, total_comments)
                 logger.info(f"📈 처리 진행률: {last_processed_index}/{total_comments}")
                 
-                # Intermediate saving
+                # Intermediate saving to CSV and PostgreSQL
                 if len(collected) > 0 and len(collected) % 100 == 0:
-                    current_month = datetime.now().strftime("%Y%m")
-                    temp_filename = f"{stock_symbol}_comments_{current_month}_temp_{len(collected)}.csv"
-                    temp_filepath = os.path.join(self.output_dir, temp_filename)
-                    df = pd.DataFrame(collected)
-                    df.to_csv(temp_filepath, index=False, encoding='utf-8')
-                    logger.info(f"📁 중간 저장: {temp_filepath}")
-
-            
+                    df = pd.DataFrame(collected[-100:])
+                    df.to_csv(filepath, mode='a', header=not os.path.exists(filepath), index=False, encoding='utf-8')
+                    logger.info(f"📁 CSV 저장: {filepath} ({len(collected)}개 댓글)")
+                    
+                    if self.db_engine:
+                        try:
+                            c = self.db_engine.cursor()
+                            execute_batch(
+                                c,
+                                """
+                                INSERT INTO comments (id, symbol, timestamp, user, content)
+                                VALUES (%s, %s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING
+                                """,
+                                [(hashlib.sha256(f"{c['time']}{c['text']}{c['stock_symbol']}".encode()).hexdigest(),
+                                c['stock_symbol'], datetime.strptime(c['time'], "%d %b, %Y %I:%M %p"), 'unknown', c['text'])
+                                for c in collected[-100:]]
+                            )
+                            self.db_engine.commit()
+                            logger.info(f"📁 PostgreSQL 저장: {len(collected)}개 댓글")
+                        except Exception as e:
+                            logger.info(f"❌ PostgreSQL 저장 오류: {e}")
             
             if not self.load_more_comments(target_frame, logger, stock_symbol):
                 logger.info("📄 더 이상 댓글 로딩 불가")
@@ -204,11 +248,36 @@ class MultiStockYahooFinanceCrawler:
                     continue
                 else:
                     break
-                
+            
             if rounds % 10 == 0:
                 logger.info("🧹 메모리 정리 중...")
                 target_frame.evaluate("if (window.gc) window.gc();")
                 time.sleep(random.uniform(1, 3))
+        
+        # Final saving to CSV and PostgreSQL
+        if collected:
+            df = pd.DataFrame(collected)
+            df.to_csv(filepath, mode='a', header=not os.path.exists(filepath), index=False, encoding='utf-8')
+            logger.info(f"📁 최종 CSV 저장: {filepath} ({len(collected)}개 댓글)")
+            
+            if self.db_engine:
+                try:
+                    c = self.db_engine.cursor()
+                    execute_batch(
+                        c,
+                        """
+                        INSERT INTO comments (id, symbol, timestamp, user, content)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        [(hashlib.sha256(f"{c['time']}{c['text']}{c['stock_symbol']}".encode()).hexdigest(),
+                        c['stock_symbol'], datetime.strptime(c['time'], "%d %b, %Y %I:%M %p"), 'unknown', c['text'])
+                        for c in collected]
+                    )
+                    self.db_engine.commit()
+                    logger.info(f"📁 최종 PostgreSQL 저장: {len(collected)}개 댓글")
+                except Exception as e:
+                    logger.info(f"❌ PostgreSQL 최종 저장 오류: {e}")
         
         return collected
 

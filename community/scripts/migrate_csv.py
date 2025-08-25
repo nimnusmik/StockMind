@@ -1,45 +1,52 @@
-# CSV → DB 마이그레이션
-"""
-CSV: time → PostgreSQL: timestamp
-CSV: text → PostgreSQL: content
-CSV: stock_symbol → PostgreSQL: symbol
-CSV: (없음) → PostgreSQL: id (해시 생성)
-CSV: (없음) → PostgreSQL: user ("unknown" 또는 추가 크롤링)
-"""
-
-import pandas as pd
-import hashlib
 import os
-from src.storage import get_db_connection
+import pandas as pd
+import psycopg2
+from psycopg2 import sql
 
-def hash_comment(timestamp, content, symbol):
-    return hashlib.sha256(f"{timestamp}{content}{symbol}".encode()).hexdigest()
+output_dir = "/app/data"
+db_params = {
+    "dbname": "stockmind",
+    "user": "user",
+    "password": "password",
+    "host": "localhost",  # 로컬에서 테스트 시
+    "port": "5432"
+}
 
-def migrate_csv_to_db(csv_file, symbol):
-    conn = get_db_connection()
-    c = conn.cursor()
-    df = pd.read_csv(csv_file)
+def connect_db():
+    try:
+        conn = psycopg2.connect(**db_params)
+        print("✅ PostgreSQL 연결 성공")
+        return conn
+    except Exception as e:
+        print(f"❌ PostgreSQL 연결 실패: {e}")
+        return None
+
+def load_csv_to_db(csv_file):
+    conn = connect_db()
+    if not conn:
+        return
     
-    for _, row in df.iterrows():
-        comment_id = hash_comment(row['time'], row['text'], row['stock_symbol'])
-        c.execute(
-            """
-            INSERT INTO comments (id, symbol, timestamp, user, content)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING
-            """,
-            (comment_id, row['stock_symbol'], row['time'], 'unknown', row['text'])
-        )
-    
-    conn.commit()
-    conn.close()
-    print(f"Migrated {len(df)} comments for {symbol} from {csv_file}")
+    try:
+        cur = conn.cursor()
+        df = pd.read_csv(csv_file)
+        for _, row in df.iterrows():
+            insert_query = sql.SQL("""
+                INSERT INTO comments (stock_symbol, time, text)
+                VALUES (%s, %s, %s)
+                ON CONFLICT DO NOTHING
+            """)
+            cur.execute(insert_query, (row['stock_symbol'], row['time'], row['text']))
+        conn.commit()
+        print(f"✅ {csv_file} 데이터를 comments 테이블에 삽입 완료")
+    except Exception as e:
+        print(f"❌ 데이터 삽입 실패: {e}")
+    finally:
+        cur.close()
+        conn.close()
 
 if __name__ == "__main__":
-    symbols = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
-    for symbol in symbols:
-        csv_file = f"data/{symbol}_comments_202508.csv"
-        if os.path.exists(csv_file):
-            migrate_csv_to_db(csv_file, symbol)
-        else:
-            print(f"CSV file not found for {symbol}: {csv_file}")
+    for csv_file in os.listdir(output_dir):
+        if csv_file.endswith(".csv"):
+            csv_path = os.path.join(output_dir, csv_file)
+            print(f"📂 처리 중: {csv_path}")
+            load_csv_to_db(csv_path)

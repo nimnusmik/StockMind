@@ -1,40 +1,38 @@
-# 임시  코드 
-version: '3.8'
-
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: stockmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    restart: unless-stopped
+    networks:
+      - stockmind-network
+
   crawler:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      - DB_HOST=db
-      - DB_NAME=yahoo_comments
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_PORT=5432
     depends_on:
       - db
-    networks:
-      - yahoo-network
     volumes:
+      - ./data:/app/data
       - ./logs:/app/logs
-     #- ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
-    restart: on-failure
-
-  db:
-    image: postgres:15
+      - ./src:/app/src
     environment:
-      - POSTGRES_DB=yahoo_comments
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - db-data:/var/lib/postgresql/data
+      - PYTHONPATH=/app/src
+    command: python /app/src/main.py
     networks:
-      - yahoo-network
-
-networks:
-  yahoo-network:
-    driver: bridge
+      - stockmind-network
 
 volumes:
-  db-data:
+  postgres_data:
+
+networks:
+  stockmind-network:
+    driver: bridge
