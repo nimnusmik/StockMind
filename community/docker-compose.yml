@@ -26,7 +26,7 @@ services:
       - ./src:/app/src
     environment:
       - PYTHONPATH=/app/src
-    command: python /app/src/main.py
+    command: python /app/src/migrate_csv_to_db.py
     networks:
       - stockmind-network
 

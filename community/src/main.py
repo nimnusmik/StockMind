@@ -1,3 +1,4 @@
+# community/src/main.py
 from crawler import MultiStockYahooFinanceCrawler
 
 if __name__ == "__main__":

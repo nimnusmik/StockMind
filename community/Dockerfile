@@ -1,3 +1,4 @@
+# Dockerfile
 FROM mcr.microsoft.com/playwright/python:v1.54.0-jammy
 
 WORKDIR /app
@@ -11,4 +12,5 @@ COPY src/ src/
 COPY data/ data/
 COPY logs/ logs/
 
-CMD ["python", "/app/src/main.py"]
+# 마이그레이션 스크립트 실행
+CMD ["python", "/app//migrate_csv_to_db.py"]
