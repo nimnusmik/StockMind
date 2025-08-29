@@ -1,3 +1,13 @@
+-- airflow 데이터베이스 생성
+CREATE DATABASE airflow;
+GRANT ALL PRIVILEGES ON DATABASE airflow TO "user";
+
+-- stockmind 데이터베이스 생성
+CREATE DATABASE stockmind;
+GRANT ALL PRIVILEGES ON DATABASE stockmind TO "user";
+
+-- stockmind 데이터베이스에서 comments 테이블 생성
+\c stockmind
 CREATE TABLE IF NOT EXISTS comments (
     id SERIAL PRIMARY KEY,
     stock_symbol VARCHAR(10) NOT NULL,

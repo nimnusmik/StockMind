@@ -4,7 +4,6 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: stockmind
     ports:
       - "5432:5432"
     volumes:
@@ -13,20 +12,73 @@ services:
     restart: unless-stopped
     networks:
       - stockmind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  crawler:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  airflow-webserver:
+    build: .
     depends_on:
-      - db
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./src:/app/src
+      db:
+        condition: service_healthy
+      airflow-scheduler:
+        condition: service_started
     environment:
-      - PYTHONPATH=/app/src
-    command: python /app/src/migrate_csv_to_db.py
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://user:password@db:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_VERSION=2.9.3
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./src:/opt/airflow/src
+    ports:
+      - "8080:8080"
+    command: webserver
+    restart: unless-stopped
+    networks:
+      - stockmind-network
+
+  airflow-scheduler:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://user:password@db:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - LOGS_DIR=/opt/airflow/logs
+      - AIRFLOW_VERSION=2.9.3
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./src:/opt/airflow/src
+    command: >
+      bash -c "airflow db init && airflow scheduler"
+    restart: unless-stopped
+    networks:
+      - stockmind-network
+
+  airflow-init:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://user:password@db:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_VERSION=2.9.3
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./src:/opt/airflow/src
+    command: >
+      bash -c "sleep 10 && airflow db init && airflow connections add 'postgres_default' --conn-type 'postgres' --conn-host 'db' --conn-login 'user' --conn-password 'password' --conn-port '5432' --conn-schema 'stockmind'"
+    restart: unless-stopped
     networks:
       - stockmind-network
 

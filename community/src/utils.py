@@ -58,7 +58,7 @@ def scroll_and_wait(target_frame, scroll_distance=500, logger=None):
         logger.info(f"⚠️ 스크롤 오류: {e}")
         return False
 
-def is_after_cutoff(time_str, cutoff_date):
+def is_after_cutoff(time_str, cutoff_date,logger=None):
     try:
         comment_time = datetime.strptime(time_str, "%d %b, %Y %I:%M %p")
         return comment_time >= cutoff_date
