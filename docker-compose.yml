@@ -1,0 +1,108 @@
+# StockMind 통합 Docker Compose
+# PostgreSQL + Redis + API 서비스
+version: '3.8'
+
+services:
+  # PostgreSQL 데이터베이스
+  db:
+    image: postgres:15
+    container_name: stockmind-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: stockmind
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./community/init_db.sql:/docker-entrypoint-initdb.d/01_init_db.sql
+      - ./api/migrations/001_api_tables.sql:/docker-entrypoint-initdb.d/02_api_tables.sql
+    restart: unless-stopped
+    networks:
+      - stockmind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d stockmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 캐시
+  redis:
+    image: redis:7-alpine
+    container_name: stockmind-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - stockmind-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # FastAPI 서버
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: stockmind-api
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/stockmind
+      - REDIS_URL=redis://redis:6379/0
+      - API_SECRET_KEY=${API_SECRET_KEY:-your-secret-key-change-in-production}
+      - MODEL_DIR=/app/api/models
+      - FEATURES_DIR=/app/news/features
+      - METADATA_DIR=/app/news/metadata
+    volumes:
+      - ./api:/app/api
+      - ./news/features:/app/news/features:ro
+      - ./news/metadata:/app/news/metadata:ro
+      - ./api/models:/app/api/models:ro
+      - api_logs:/app/api/logs
+    restart: unless-stopped
+    networks:
+      - stockmind-network
+
+  # 커뮤니티 크롤러 (선택적)
+  crawler:
+    build:
+      context: ./community
+      dockerfile: Dockerfile
+    container_name: stockmind-crawler
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./community/data:/app/data
+      - ./community/logs:/app/logs
+      - ./community/src:/app/src
+    environment:
+      - PYTHONPATH=/app/src
+      - DATABASE_URL=postgresql://user:password@db:5432/stockmind
+    networks:
+      - stockmind-network
+    profiles:
+      - crawler  # 선택적 프로파일 (docker-compose --profile crawler up)
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  api_logs:
+    driver: local
+
+networks:
+  stockmind-network:
+    driver: bridge

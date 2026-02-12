@@ -55,14 +55,17 @@ class MultiStockYahooFinanceCrawler:
 
     def connect_db(self):
         try:
+            # DB_HOST 환경변수가 있으면 사용, 없으면 'db' (Docker) 사용
+            db_host = os.getenv('DB_HOST', 'db')
+
             self.db_engine = psycopg2.connect(
                 dbname="stockmind",
                 user="user",
                 password="password",
-                host="db",  # Docker Compose 서비스 이름
+                host=db_host,
                 port="5432"
             )
-            print("✅ PostgreSQL 연결 성공")
+            print(f"✅ PostgreSQL 연결 성공 (host: {db_host})")
 
         except Exception as e:
             print(f"❌ PostgreSQL 연결 실패: {e}")
@@ -225,19 +228,22 @@ class MultiStockYahooFinanceCrawler:
                     
                     if self.db_engine:
                         try:
-                            c = self.db_engine.cursor()
+                            cursor = self.db_engine.cursor()
                             execute_batch(
-                                c,
+                                cursor,
                                 """
-                                INSERT INTO comments (id, symbol, timestamp, user, content)
-                                VALUES (%s, %s, %s, %s, %s)
-                                ON CONFLICT DO NOTHING
+                                INSERT INTO comments (stock_symbol, comment_time, comment_text, comment_hash)
+                                VALUES (%s, %s, %s, %s)
+                                ON CONFLICT (stock_symbol, comment_time, comment_hash) DO NOTHING
                                 """,
-                                [(hashlib.sha256(f"{c['time']}{c['text']}{c['stock_symbol']}".encode()).hexdigest(),
-                                c['stock_symbol'], datetime.strptime(c['time'], "%d %b, %Y %I:%M %p"), 'unknown', c['text'])
+                                [(c['stock_symbol'],
+                                  datetime.strptime(c['time'], "%d %b, %Y %I:%M %p"),
+                                  c['text'],
+                                  hashlib.md5(c['text'].encode()).hexdigest())
                                 for c in collected[-100:]]
                             )
                             self.db_engine.commit()
+                            cursor.close()
                             logger.info(f"📁 PostgreSQL 저장: {len(collected)}개 댓글")
                         except Exception as e:
                             logger.info(f"❌ PostgreSQL 저장 오류: {e}")
@@ -262,19 +268,22 @@ class MultiStockYahooFinanceCrawler:
             
             if self.db_engine:
                 try:
-                    c = self.db_engine.cursor()
+                    cursor = self.db_engine.cursor()
                     execute_batch(
-                        c,
+                        cursor,
                         """
-                        INSERT INTO comments (id, symbol, timestamp, user, content)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING
+                        INSERT INTO comments (stock_symbol, comment_time, comment_text, comment_hash)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (stock_symbol, comment_time, comment_hash) DO NOTHING
                         """,
-                        [(hashlib.sha256(f"{c['time']}{c['text']}{c['stock_symbol']}".encode()).hexdigest(),
-                        c['stock_symbol'], datetime.strptime(c['time'], "%d %b, %Y %I:%M %p"), 'unknown', c['text'])
+                        [(c['stock_symbol'],
+                          datetime.strptime(c['time'], "%d %b, %Y %I:%M %p"),
+                          c['text'],
+                          hashlib.md5(c['text'].encode()).hexdigest())
                         for c in collected]
                     )
                     self.db_engine.commit()
+                    cursor.close()
                     logger.info(f"📁 최종 PostgreSQL 저장: {len(collected)}개 댓글")
                 except Exception as e:
                     logger.info(f"❌ PostgreSQL 최종 저장 오류: {e}")
