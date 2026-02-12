@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import json
 import numpy as np
+import joblib
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
@@ -66,7 +67,7 @@ def load_data(metadata_path):
     return np.array(X_features), np.array(Y_labels), np.array(date_list)
 
 
-def train_and_evaluate(cache_file, mode):
+def train_and_evaluate(cache_file, mode, ticker):
     X, y, dates = load_data(cache_file)
 
     if mode == "random":
@@ -90,10 +91,19 @@ def train_and_evaluate(cache_file, mode):
     print(f"예측값 (y_pred): {y_pred[0]:.2f}%")
     print(f"MAE: {mae:.4f}%")
 
+    # 모델 저장
+    model_dir = "../../api/models"
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, f"{ticker}_rf_model.pkl")
+    joblib.dump(model, model_path)
+    print(f"💾 모델 저장: {model_path}")
+
+    return model
+
 if __name__ == "__main__":
     mode = input('mode select (random, last) : ')
     tickers = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
     for ticker in tickers:
         print(f'❗️ {ticker} 대상 analysis 시작')
         cache_file = f'../metadata/{ticker}_metadata.json'
-        train_and_evaluate(cache_file, mode)
+        train_and_evaluate(cache_file, mode, ticker)

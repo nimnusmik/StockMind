@@ -1,9 +1,9 @@
 from datetime import datetime
 
 stocks = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
-output_dir = "/Users/sunminkim/Desktop/AIStages/StockMind/community/data"
-logs_base_dir = "/Users/sunminkim/Desktop/AIStages/StockMind/community/logs"
-cutoff_date = datetime(2025, 8, 1)
+output_dir = "/Users/sunminkim/Desktop/projects/StockMind/community/data"
+logs_base_dir = "/Users/sunminkim/Desktop/projects/StockMind/community/logs"
+cutoff_date = datetime(2025, 7, 1)
 
 """
 기존 user agents
