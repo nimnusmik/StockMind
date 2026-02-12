@@ -1,144 +1,296 @@
-# Yahoo Finance Community Sentiment Stock Prediction
+# StockMind - AI Stock Trading Signal Platform
 
-## 프로젝트 개요
+<div align="center">
 
-이 프로젝트는 야후 파이낸스의 커뮤니티 댓글을 분석하여 주식 가격의 상승/하락을 예측하는 머신러닝 프로젝트입니다. 대형 기술주 8개 종목의 커뮤니티 감정을 실시간으로 수집하고 분석하여 투자 인사이트를 제공합니다.
+**커뮤니티 감성 + 뉴스 분석 → AI 매매 신호**
 
-## 대상 종목
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://www.postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-red.svg)](https://redis.io)
+
+</div>
+
+## 📋 프로젝트 개요
+
+StockMind는 Yahoo Finance 커뮤니티 감성과 금융 뉴스 분석을 결합하여 **AI 기반 매매 신호(BUY/HOLD/SELL)**를 제공하는 플랫폼입니다.
+
+**핵심 기능:**
+- 🤖 RandomForest 기반 가격 예측 (MAE 0.24~1.27%)
+- 📊 이중 감성 분석 (뉴스 60% + 커뮤니티 40%)
+- 🎯 자동 매매 신호 생성 (BUY/HOLD/SELL)
+- 📈 커뮤니티 버즈 지표 (활동량, 감성 속도)
+- 🚀 REST API (FastAPI + Redis 캐싱)
+
+**대상 종목:** AAPL, GOOG, META, TSLA, MSFT, AMZN, NVDA, NFLX
+
+## 🏗️ 아키텍처
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    FastAPI Backend                       │
+│                  (localhost:8001)                        │
+├──────────────────────────────────────────────────────────┤
+│  /api/v1/signals/{symbol}      → BUY/HOLD/SELL 신호    │
+│  /api/v1/predictions/{symbol}  → 가격 예측             │
+│  /api/v1/sentiment/{symbol}    → 감성 분석             │
+│  /api/v1/buzz/{symbol}         → 커뮤니티 활동 지표     │
+└──────────────────────────────────────────────────────────┘
+                    ↓           ↓           ↓
+         ┌──────────────┐  ┌─────────┐  ┌───────────────┐
+         │ PostgreSQL   │  │  Redis  │  │  ML Models    │
+         │ (12,969개    │  │ (캐싱)  │  │  (8 stocks)   │
+         │  댓글)       │  │         │  │  .pkl files   │
+         └──────────────┘  └─────────┘  └───────────────┘
+```
+
+## 🚀 빠른 시작
+
+### 1. 전체 시스템 실행
+
+```bash
+# 모든 서비스 시작 (PostgreSQL, Redis, FastAPI)
+docker-compose up -d
+
+# API 문서 접속
+open http://localhost:8001/docs
+```
+
+### 2. API 테스트
+
+```bash
+# 매매 신호 조회
+curl http://localhost:8001/api/v1/signals/AAPL | jq
+
+# 가격 예측 조회
+curl http://localhost:8001/api/v1/predictions/TSLA/price | jq
+
+# 복합 감성 분석
+curl http://localhost:8001/api/v1/sentiment/NVDA/combined | jq
+```
+
+### 3. 커뮤니티 크롤러 실행
+
+```bash
+cd community
+python3 src/main.py
+```
+
+### 4. ML 모델 학습
+
+```bash
+cd news/code
+echo "last" | python3 train_model.py
+```
+
+## 📊 API 엔드포인트
+
+### 매매 신호 (핵심)
+
+**`GET /api/v1/signals/{symbol}`**
+
+```json
+{
+  "signal": "BUY",
+  "strength": "MODERATE",
+  "confidence": 68.3,
+  "predicted_change_pct": 2.5,
+  "sentiment_score": 0.42,
+  "supporting_factors": ["예측 변동률 2.5%", "긍정 감성 우세"]
+}
+```
+
+**신호 알고리즘:**
+- `BUY`: 예측 상승률 >+2% AND 감성 점수 >0.3
+- `SELL`: 예측 하락률 <-2% AND 감성 점수 <-0.3
+- `HOLD`: 그 외
+
+### 기타 주요 엔드포인트
+
+| 엔드포인트 | 설명 | 캐시 TTL |
+|-----------|------|----------|
+| `/predictions/{symbol}/price` | ML 가격 예측 | 5분 |
+| `/sentiment/{symbol}/community` | 커뮤니티 감성 | 1시간 |
+| `/sentiment/{symbol}/news` | 뉴스 감성 | 24시간 |
+| `/sentiment/{symbol}/combined` | 복합 감성 | 1시간 |
+| `/buzz/{symbol}` | 활동 지표 | 15분 |
+| `/historical/{symbol}/comments` | 댓글 이력 | - |
+
+## 📁 프로젝트 구조
+
+```
+StockMind/
+├── api/                          # FastAPI 백엔드
+│   ├── main.py                   # 앱 엔트리
+│   ├── routers/                  # API 라우터
+│   ├── services/                 # 비즈니스 로직
+│   ├── ml/                       # ML 모델 레지스트리
+│   └── models/                   # 학습된 .pkl 파일
+│
+├── community/                    # 커뮤니티 크롤러
+│   ├── src/
+│   │   ├── crawler.py           # Yahoo Finance 크롤러
+│   │   ├── main.py              # 실행 파일
+│   │   └── migrate_csv_to_db.py # CSV → DB 마이그레이션
+│   └── init_db.sql              # DB 스키마
+│
+├── news/                         # 뉴스 분석 파이프라인
+│   └── code/
+│       ├── 1st_stock_graph.py   # 주가 데이터 수집
+│       ├── 2nd_create_csv_with_link.py  # 뉴스 링크 크롤링
+│       ├── 3rd_add_content_in_csv.py    # 본문 추출
+│       ├── 4th_analysis.py      # NLP 분석
+│       ├── 5th_make_metadata.py # 메타데이터 생성
+│       └── train_model.py       # ML 모델 학습
+│
+├── docker-compose.yml           # 통합 Docker 설정
+└── README.md
+```
+
+## 🔧 기술 스택
+
+| 카테고리 | 기술 |
+|---------|------|
+| **Backend** | FastAPI, Uvicorn |
+| **Database** | PostgreSQL 15, SQLAlchemy |
+| **Cache** | Redis 7 |
+| **ML** | scikit-learn (RandomForest), sentence-transformers |
+| **NLP** | FinBERT, DistilBART, KeyBERT |
+| **Crawler** | Playwright, BeautifulSoup |
+| **Deploy** | Docker, Docker Compose |
+
+## 📈 ML 모델 성능
+
+| 종목 | MAE (%) | 특징 차원 | 학습 데이터 |
+|-----|---------|----------|-----------|
+| GOOG | 0.24 | 392D | 49일 |
+| NVDA | 0.61 | 392D | 65일 |
+| AAPL | 0.48 | 392D | 62일 |
+| NFLX | 0.46 | 392D | 58일 |
+| TSLA | 0.54 | 392D | 51일 |
+| META | 0.64 | 392D | 59일 |
+| AMZN | 0.94 | 392D | 64일 |
+| MSFT | 1.27 | 392D | 63일 |
+
+**특징 구성:** 384D 임베딩 + 3D 감성 + 5D 키워드 = 392D
+
+## 💾 데이터
+
+### 커뮤니티 댓글 (PostgreSQL)
+
+```sql
+SELECT stock_symbol, COUNT(*) FROM comments GROUP BY stock_symbol;
+```
+
+| 종목 | 댓글 수 | 기간 |
+|-----|--------|------|
+| AMZN | 2,404 | 2025-05 ~ 2025-07 |
+| GOOG | 2,348 | 2025-05 ~ 2025-07 |
+| NVDA | 1,810 | 2025-07 |
+| MSFT | 1,769 | 2025-04 ~ 2025-07 |
+| TSLA | 1,678 | 2025-08 |
+| META | 1,646 | 2025-05 ~ 2025-07 |
+| NFLX | 1,279 | 2025-05 ~ 2025-07 |
+| AAPL | 35 | 2025-07 |
+
+**총 12,969개 댓글**
+
+### 뉴스 데이터
+
+- 8개 종목 × 49~65일 = 약 460개 뉴스 데이터셋
+- 각 데이터: 요약, 감성 점수, 키워드, 임베딩 벡터
+
+## 🔐 환경 설정
+
+### 필수 환경 변수 (api/.env)
+
+```bash
+DATABASE_URL=postgresql://user:password@localhost:5433/stockmind
+REDIS_URL=redis://localhost:6379/0
+API_SECRET_KEY=your-secret-key-here
+```
+
+### Docker 포트 매핑
+
+- **PostgreSQL**: `localhost:5433` → `container:5432`
+- **Redis**: `localhost:6379`
+- **FastAPI**: `localhost:8001` → `container:8000`
+
+## 📖 사용 예시
+
+### Python 클라이언트
 
 ```python
-stocks = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
+import requests
+
+# 매매 신호 조회
+response = requests.get("http://localhost:8001/api/v1/signals/AAPL")
+signal = response.json()
+
+if signal["signal"] == "BUY" and signal["confidence"] > 70:
+    print(f"🚀 강력한 매수 신호! 신뢰도: {signal['confidence']}%")
+    print(f"예측 상승률: {signal['predicted_change_pct']}%")
 ```
 
-- **AAPL**: Apple Inc.
-- **GOOG**: Alphabet Inc.
-- **META**: Meta Platforms Inc.
-- **TSLA**: Tesla Inc.
-- **MSFT**: Microsoft Corporation
-- **AMZN**: Amazon.com Inc.
-- **NVDA**: NVIDIA Corporation
-- **NFLX**: Netflix Inc.
+### cURL
 
-## 데이터 수집 구조
-
-### 수집 데이터 형식
-```csv
-time,text,stock_symbol
-"12 Jul, 2025 11:48 PM","Under Cook - Apple car epic fail - AI epic fail - Apple maps (2012), Apple Vision Pro's Lack of Traction (2024)","AAPL"
-```
-
-### 데이터 필드
-- **time**: 댓글 작성 시간
-- **text**: 댓글 내용
-- **stock_symbol**: 해당 종목 심볼
-
-## 프로젝트 아키텍처
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Yahoo Finance │    │   Data Pipeline │    │   ML Pipeline   │
-│   Web Scraping  │───▶│   (Airflow)     │───▶│   Prediction    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Raw CSV Data  │    │   Database      │    │   Prediction    │
-│                 │    │   (PostgreSQL)  │    │   Results API   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-## 기술 스택
-
-### 데이터 수집
-- **Python**: 웹 스크래핑 및 데이터 처리
-- **BeautifulSoup/Selenium**: Yahoo Finance 댓글 크롤링
-- **Pandas**: 데이터 전처리
-
-### 데이터베이스
-- **PostgreSQL**: 댓글 데이터 저장
-- **SQLAlchemy**: ORM
-
-### 자동화 및 파이프라인
-- **Apache Airflow**: 데이터 수집 및 모델링 자동화
-- **Docker**: 컨테이너화
-
-### 머신러닝
-- **Scikit-learn**: 기본 ML 모델
-- **Transformers**: 자연어 처리 (BERT, RoBERTa)
-- **TensorFlow/PyTorch**: 딥러닝 모델
-
-### API 및 서빙
-- **FastAPI**: 예측 결과 API
-- **Redis**: 캐싱
-- **Grafana**: 모니터링 대시보드
-
-## 프로젝트 단계
-
-### Phase 1: 데이터 수집 및 저장 (완료)
-- [x] Yahoo Finance 댓글 크롤링
-- [x] CSV 파일로 초기 데이터 저장
-- [x] 데이터베이스 마이그레이션
-
-### Phase 2: 자동화 파이프라인 구축 (진행 중)
-- [ ] Airflow DAG 설계
-- [ ] 일일 데이터 수집 자동화
-- [ ] 데이터 품질 검증
-- [ ] 에러 핸들링 및 알림
-
-### Phase 3: 머신러닝 모델 개발
-- [ ] 텍스트 전처리 및 특성 추출
-- [ ] 감성 분석 모델 구축
-- [ ] 주가 예측 모델 개발
-- [ ] 모델 성능 평가 및 최적화
-
-### Phase 4: 서빙 시스템 구축
-- [ ] 실시간 예측 API 개발
-- [ ] 웹 대시보드 구축
-- [ ] 알림 시스템 구현
-
-## 설치 및 실행
-
-### 환경 설정
 ```bash
-# 저장소 클론
-git clone https://github.com/your-username/yahoo-finance-stock-prediction.git
-cd yahoo-finance-stock-prediction
+# 여러 종목 동시 조회
+for symbol in AAPL GOOG TSLA NVDA; do
+  echo "=== $symbol ==="
+  curl -s "http://localhost:8001/api/v1/signals/$symbol" | jq '.signal, .confidence'
+done
+```
 
-# 가상환경 생성 및 활성화
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 또는 venv\Scripts\activate  # Windows
+## 🛠️ 개발 가이드
 
-# 의존성 설치
+### 로컬 개발 환경
+
+```bash
+# API 개발
+cd api
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
+
+# 크롤러 개발
+cd community
+pip install -r requirements.txt
+python3 src/main.py
 ```
 
-### 데이터베이스 설정
+### DB 마이그레이션 실행
+
 ```bash
-# PostgreSQL 설치 및 설정
-createdb stock_prediction_db
-
-# 환경 변수 설정
-export DATABASE_URL="postgresql://username:password@localhost/stock_prediction_db"
+# API 테이블 생성
+docker exec stockmind-db psql -U user -d stockmind -f /app/migrations/001_api_tables.sql
 ```
 
-### 실행
-```bash
-# 데이터 수집
-python scripts/scrape_comments.py
+### 새로운 종목 추가
 
-# Airflow 시작
-airflow webserver --port 8080
-airflow scheduler
-```
+1. `community/src/config.py`에 종목 추가
+2. `news/code/` 파이프라인 실행
+3. `train_model.py`로 모델 학습
+4. API 재시작
 
-## 라이센스
+## ⚠️ 주의사항
 
-이 프로젝트는 MIT 라이센스 하에 있습니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
+- **교육/연구 목적**: 이 프로젝트는 실제 투자 조언이 아닙니다
+- **데이터 최신성**: 현재 데이터는 2025년 중반 기준으로 historical data입니다
+- **크롤링 정책**: Yahoo Finance 이용약관을 준수하세요
+- **리스크 관리**: 실제 투자 시 본인의 판단과 리스크 관리가 필요합니다
 
-## 주의사항
+## 📝 라이센스
 
-- 이 프로젝트는 교육 및 연구 목적으로만 사용되어야 합니다
-- 실제 투자 결정에 사용하기 전에 충분한 검증이 필요합니다
-- Yahoo Finance의 이용약관을 준수하여 크롤링을 수행하세요
-- 예측 결과는 투자 조언이 아닙니다
+MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일 참조
+
+## 🙏 기여
+
+이슈와 풀 리퀘스트는 언제나 환영합니다!
+
+---
+
+<div align="center">
+Made with ❤️ by StockMind Team
+</div>
