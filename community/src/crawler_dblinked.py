@@ -58,12 +58,15 @@ class MultiStockYahooFinanceCrawler:
             # DB_HOST 환경변수가 있으면 사용, 없으면 'db' (Docker) 사용
             db_host = os.getenv('DB_HOST', 'db')
 
+            # 로컬 환경: port 5433, Docker: port 5432
+            db_port = os.getenv('DB_PORT', '5432')
+
             self.db_engine = psycopg2.connect(
                 dbname="stockmind",
                 user="user",
                 password="password",
                 host=db_host,
-                port="5432"
+                port=db_port
             )
             print(f"✅ PostgreSQL 연결 성공 (host: {db_host})")
 

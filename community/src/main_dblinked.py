@@ -6,8 +6,8 @@ if __name__ == "__main__":
     print("🚀 Yahoo Finance Community Crawler (DB Direct) 시작")
     print("=" * 60)
 
-    # headless=False로 브라우저 확인 가능
-    crawler = MultiStockYahooFinanceCrawler(headless=False)
+    # headless=True로 백그라운드 실행 (빠른 수집)
+    crawler = MultiStockYahooFinanceCrawler(headless=True)
     try:
         results = crawler.crawl_all_stocks()
     except KeyboardInterrupt:

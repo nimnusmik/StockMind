@@ -149,17 +149,17 @@ def migrate_csv_to_db(csv_dir, db_config):
     print("\n🎉 모든 CSV 파일 마이그레이션 완료")
 
 if __name__ == "__main__":
-    # DB 설정 (로컬 PostgreSQL)
+    # DB 설정 (Docker PostgreSQL)
     db_config = {
         "dbname": "stockmind",
         "user": "user",
         "password": "password",
         "host": os.getenv('DB_HOST', 'localhost'),
-        "port": "5432"
+        "port": os.getenv('DB_PORT', '5433')  # Docker는 5433, 로컬은 5432
     }
 
     # CSV 디렉토리
-    csv_dir = "/Users/sunminkim/Desktop/AIStages/StockMind/community/data"
+    csv_dir = "/Users/sunminkim/Desktop/projects/StockMind/community/data"
 
     # 마이그레이션 실행
     migrate_csv_to_db(csv_dir, db_config)
