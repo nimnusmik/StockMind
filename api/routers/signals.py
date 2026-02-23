@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import redis.asyncio as redis
 
-from api.dependencies import get_db, get_redis, validate_symbol
+from api.dependencies import get_db, get_redis, validate_symbol, get_current_user
 from api.schemas.signal import (
     TradingSignalResponse,
     SignalHistoryResponse,
@@ -17,6 +17,7 @@ from api.services.sentiment_service import SentimentService
 from api.services.signal_service import SignalService
 from api.services.ml_service import ml_service
 from api.services.cache_service import CacheService
+from api.services.price_service import get_current_price
 from api.data.repositories.signal_repo import SignalRepository
 
 
@@ -65,8 +66,13 @@ async def get_trading_signal(
     predicted_price = prediction['predicted_price']
     model_confidence = prediction['model_confidence']
 
-    # 현재 가격 (예측 가격의 98%로 가정, 실제로는 API에서 가져와야 함)
-    current_price = predicted_price * 0.98
+    # 현재 가격 (TwelveData API)
+    current_price = await get_current_price(symbol, cache_service)
+    if current_price is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"현재 주가 조회 실패: {symbol}. TWELVEDATA_API_KEY 설정을 확인하세요."
+        )
 
     # 3. 감성 분석
     sentiment_service = SentimentService(db)
@@ -146,7 +152,8 @@ def get_signal_accuracy(
 @router.delete("/{symbol}/cache")
 async def invalidate_signal_cache(
     symbol: str = Depends(validate_symbol),
-    redis_client: redis.Redis = Depends(get_redis)
+    redis_client: redis.Redis = Depends(get_redis),
+    _user: dict = Depends(get_current_user)
 ):
     """
     종목의 신호 캐시 무효화

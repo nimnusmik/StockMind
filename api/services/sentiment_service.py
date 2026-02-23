@@ -3,7 +3,7 @@
 커뮤니티 + 뉴스 이중 감성 융합
 """
 from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from collections import Counter
 import re
@@ -12,14 +12,43 @@ from api.config import settings
 from api.data.repositories.comment_repo import CommentRepository
 from api.data.repositories.news_repo import NewsRepository
 
+# 모듈 레벨 키워드 목록 (historical 라우터에서도 import 가능)
+_POSITIVE_KEYWORDS = [
+    'buy', 'bullish', 'growth', 'profit', 'up', 'gain', 'success',
+    'strong', 'rally', 'boom', 'rise', 'positive', 'good', 'great',
+    'excellent', 'moon', 'rocket', '🚀', '📈', '💎'
+]
+_NEGATIVE_KEYWORDS = [
+    'sell', 'bearish', 'loss', 'down', 'decline', 'crash', 'fail',
+    'weak', 'drop', 'fall', 'negative', 'bad', 'poor', 'terrible',
+    'dump', '📉', '⚠️', '💀'
+]
+
+
+def classify_text_sentiment(text: str) -> str:
+    """
+    규칙 기반 텍스트 감성 분류
+
+    Returns:
+        str: "positive" | "negative" | "neutral"
+    """
+    t = text.lower()
+    has_pos = any(kw in t for kw in _POSITIVE_KEYWORDS)
+    has_neg = any(kw in t for kw in _NEGATIVE_KEYWORDS)
+    if has_pos and not has_neg:
+        return "positive"
+    if has_neg and not has_pos:
+        return "negative"
+    return "neutral"
+
 
 class SentimentService:
     """감성 분석 비즈니스 로직"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, news_repo: Optional[NewsRepository] = None):
         self.db = db
         self.comment_repo = CommentRepository(db)
-        self.news_repo = NewsRepository()
+        self.news_repo = news_repo or NewsRepository()  # 테스트 시 Mock 주입 가능
 
     def calculate_community_sentiment(
         self,
@@ -53,19 +82,6 @@ class SentimentService:
                 "trending_keywords": []
             }
 
-        # 긍정/부정 키워드 정의
-        positive_keywords = [
-            'buy', 'bullish', 'growth', 'profit', 'up', 'gain', 'success',
-            'strong', 'rally', 'boom', 'rise', 'positive', 'good', 'great',
-            'excellent', 'moon', 'rocket', '🚀', '📈', '💎'
-        ]
-
-        negative_keywords = [
-            'sell', 'bearish', 'loss', 'down', 'decline', 'crash', 'fail',
-            'weak', 'drop', 'fall', 'negative', 'bad', 'poor', 'terrible',
-            'dump', '📉', '⚠️', '💀'
-        ]
-
         positive_count = 0
         negative_count = 0
         neutral_count = 0
@@ -76,8 +92,8 @@ class SentimentService:
             all_words.extend(re.findall(r'\b\w+\b', text))
 
             # 긍정/부정 키워드 매칭
-            has_positive = any(keyword in text for keyword in positive_keywords)
-            has_negative = any(keyword in text for keyword in negative_keywords)
+            has_positive = any(keyword in text for keyword in _POSITIVE_KEYWORDS)
+            has_negative = any(keyword in text for keyword in _NEGATIVE_KEYWORDS)
 
             if has_positive and not has_negative:
                 positive_count += 1
@@ -180,7 +196,7 @@ class SentimentService:
 
         # 신뢰도 계산 (데이터 볼륨 기반)
         # 뉴스 20개 + 댓글 200개 = 신뢰도 100%
-        confidence = min(100.0, (news_count + community_count / 10) / 20 * 100)
+        confidence = min(100.0, (news_count + (community_count / 10)) / 20 * 100)
 
         return {
             "composite_score": round(composite_score, 3),
@@ -195,6 +211,25 @@ class SentimentService:
                 "data_quality": "high" if confidence > 70 else "medium" if confidence > 40 else "low"
             }
         }
+
+    def calculate_sentiment_velocity(self, symbol: str) -> float:
+        """
+        감성 속도 계산 (현재 1시간 감성 - 이전 1시간 감성)
+
+        Returns:
+            float: -2.0 ~ 2.0 범위의 속도값
+        """
+        current_comments = self.comment_repo.get_comments_in_window(symbol, 1, 0)
+        prev_comments = self.comment_repo.get_comments_in_window(symbol, 2, 1)
+
+        def _score(comments) -> float:
+            if not comments:
+                return 0.0
+            pos = sum(1 for c in comments if classify_text_sentiment(c.comment_text) == "positive")
+            neg = sum(1 for c in comments if classify_text_sentiment(c.comment_text) == "negative")
+            return (pos - neg) / len(comments)
+
+        return round(_score(current_comments) - _score(prev_comments), 3)
 
     def get_sentiment_trend(
         self,
@@ -211,16 +246,29 @@ class SentimentService:
         Returns:
             List[Dict]: 시간별 감성 데이터
         """
+        from datetime import timedelta
         hourly_volume = self.comment_repo.get_hourly_comment_volume(symbol, hours)
 
-        # 각 시간대의 댓글로 감성 계산 (간단한 구현)
         trend = []
         for item in hourly_volume:
-            # 실제로는 각 시간대의 댓글을 분석해야 하지만, 여기서는 전체 감성 사용
-            overall_sentiment = self.calculate_community_sentiment(symbol, 1)
+            hour_start = item['hour']
+            hour_end = hour_start + timedelta(hours=1)
+
+            # 해당 시간대 댓글만 조회해 감성 계산
+            comments = self.comment_repo.get_comments_by_date_range(
+                symbol, hour_start, hour_end
+            )
+
+            if comments:
+                pos = sum(1 for c in comments if classify_text_sentiment(c.comment_text) == "positive")
+                neg = sum(1 for c in comments if classify_text_sentiment(c.comment_text) == "negative")
+                score = round((pos - neg) / len(comments), 3)
+            else:
+                score = 0.0
+
             trend.append({
-                "timestamp": item['hour'],
-                "sentiment_score": overall_sentiment['sentiment_score'],
+                "timestamp": hour_start,
+                "sentiment_score": score,
                 "volume": item['count']
             })
 

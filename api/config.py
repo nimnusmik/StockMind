@@ -4,6 +4,8 @@ API 설정 파일
 """
 import os
 from typing import List
+from pydantic import Field
+from pydantic import AliasChoices
 from pydantic_settings import BaseSettings
 
 
@@ -28,10 +30,13 @@ class Settings(BaseSettings):
     # Redis 설정
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-    # JWT 인증 설정
-    SECRET_KEY: str = os.getenv("API_SECRET_KEY", "your-secret-key-change-in-production")
+    # JWT 인증 설정 (API_SECRET_KEY 또는 SECRET_KEY 환경 변수 필수 — 미설정 시 시작 불가)
+    SECRET_KEY: str = Field(validation_alias=AliasChoices("API_SECRET_KEY", "SECRET_KEY"))
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24시간
+
+    # 외부 API
+    TWELVEDATA_API_KEY: str = os.getenv("TWELVEDATA_API_KEY", "")
 
     # ML 모델 설정
     MODEL_DIR: str = os.getenv("MODEL_DIR", "/app/api/models")

@@ -116,10 +116,12 @@ async def get_news_sentiment(
             "date": today
         }
 
+    top_keywords = sentiment_service.news_repo.get_top_keywords(symbol, top_n=10)
+
     response_data = {
         "symbol": symbol,
         "timestamp": datetime.utcnow(),
-        "top_keywords": [],  # TODO: KeyBERT 키워드 추출
+        "top_keywords": top_keywords,
         **result
     }
 

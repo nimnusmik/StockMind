@@ -8,9 +8,9 @@ services:
     image: postgres:15
     container_name: stockmind-db
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: stockmind
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-stockmind}
     ports:
       - "5433:5432"
     volumes:
@@ -21,7 +21,7 @@ services:
     networks:
       - stockmind-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d stockmind"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-stockmind}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,9 +58,10 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/stockmind
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-stockmind}
       - REDIS_URL=redis://redis:6379/0
-      - API_SECRET_KEY=${API_SECRET_KEY:-your-secret-key-change-in-production}
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - TWELVEDATA_API_KEY=${TWELVEDATA_API_KEY}
       - MODEL_DIR=/app/api/models
       - FEATURES_DIR=/app/news/features
       - METADATA_DIR=/app/news/metadata
@@ -89,7 +90,7 @@ services:
       - ./community/src:/app/src
     environment:
       - PYTHONPATH=/app/src
-      - DATABASE_URL=postgresql://user:password@db:5432/stockmind
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-stockmind}
     networks:
       - stockmind-network
     profiles:

@@ -5,11 +5,13 @@ ML 모델 기반 주가 예측
 from fastapi import APIRouter, Depends
 from datetime import datetime
 import redis.asyncio as redis
+from api.config import settings
 
-from api.dependencies import get_redis, validate_symbol
+from api.dependencies import get_redis, validate_symbol, get_current_user
 from api.schemas.prediction import PricePredictionResponse
 from api.services.ml_service import ml_service
 from api.services.cache_service import CacheService
+from api.services.price_service import get_current_price
 
 
 router = APIRouter(prefix="/predictions", tags=["Price Predictions"])
@@ -64,9 +66,14 @@ async def predict_stock_price(
 
     predicted_price = prediction['predicted_price']
 
-    # 현재 가격 (간단히 예측 가격의 98%로 가정)
-    # 실제로는 외부 API (예: TwelveData, Alpha Vantage)에서 가져와야 함
-    current_price = predicted_price * 0.98
+    # 현재 가격 (TwelveData API)
+    current_price = await get_current_price(symbol, cache_service)
+    if current_price is None:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=503,
+            detail=f"현재 주가 조회 실패: {symbol}. TWELVEDATA_API_KEY 설정을 확인하세요."
+        )
 
     # 변동률 계산
     predicted_change_pct = ((predicted_price - current_price) / current_price) * 100
@@ -132,8 +139,47 @@ def get_feature_importance():
     return ml_service.get_feature_importance()
 
 
+@router.post("/models/reload")
+async def reload_models(
+    redis_client: redis.Redis = Depends(get_redis),
+    _user: dict = Depends(get_current_user)
+):
+    """
+    ML 모델 핫 리로드 (재시작 없이 갱신)
+
+    **동작:**
+    1. 예측·신호 Redis 캐시 무효화 (구 예측값 제거)
+    2. 메모리 모델 캐시 초기화
+    3. 디스크에서 최신 모델 파일 재로딩
+
+    **사용 시점:**
+    - `train_model.py` 실행 후 즉시 반영
+    - API 재시작 불필요
+
+    **인증 필요**
+    """
+    from api.ml.model_registry import model_registry
+    from api.services.cache_service import CacheService
+
+    # 1. 예측·신호 캐시 무효화
+    cache_service = CacheService(redis_client)
+    for symbol in settings.SUPPORTED_SYMBOLS:
+        await cache_service.invalidate_symbol_cache(symbol)
+
+    # 2. 모델 재로딩
+    model_registry.clear_cache()
+    model_registry.preload_all_models()
+    loaded = model_registry.get_loaded_models()
+
+    return {
+        "message": "모델 핫 리로드 완료 (캐시 무효화 포함)",
+        "loaded_models": loaded,
+        "count": len(loaded)
+    }
+
+
 @router.post("/preload-models")
-def preload_all_models():
+def preload_all_models(_user: dict = Depends(get_current_user)):
     """
     모든 종목의 모델 사전 로딩
 

@@ -151,9 +151,9 @@ def migrate_csv_to_db(csv_dir, db_config):
 if __name__ == "__main__":
     # DB 설정 (Docker PostgreSQL)
     db_config = {
-        "dbname": "stockmind",
-        "user": "user",
-        "password": "password",
+        "dbname": os.getenv('DB_NAME', 'stockmind'),
+        "user": os.getenv('DB_USER', 'user'),
+        "password": os.getenv('DB_PASSWORD'),
         "host": os.getenv('DB_HOST', 'localhost'),
         "port": os.getenv('DB_PORT', '5433')  # Docker는 5433, 로컬은 5432
     }

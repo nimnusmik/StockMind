@@ -1,12 +1,15 @@
 import time
 import random
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 def wait_for_element(page_or_frame, selector, timeout=10000):
     try:
         page_or_frame.wait_for_selector(selector, timeout=timeout)
         return True
-    except:
+    except Exception:
         return False
 
 def wait_for_comments_frame(page, max_wait=15, logger=None):
@@ -63,7 +66,7 @@ def is_after_cutoff(time_str, cutoff_date):
         comment_time = datetime.strptime(time_str, "%d %b, %Y %I:%M %p")
         return comment_time >= cutoff_date
     except ValueError:
-        logger.info(f"⚠️ 날짜 파싱 오류: {time_str}")
+        logger.warning(f"⚠️ 날짜 파싱 오류: {time_str}")
         return False
 
 # Optional: CAPTCHA handling (uncomment and configure if needed)

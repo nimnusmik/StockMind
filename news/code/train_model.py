@@ -70,10 +70,19 @@ def load_data(metadata_path):
 def train_and_evaluate(cache_file, mode, ticker):
     X, y, dates = load_data(cache_file)
 
+    # NaN / Inf 검증 및 제거
+    finite_mask = np.isfinite(X).all(axis=1)
+    bad_count = (~finite_mask).sum()
+    if bad_count > 0:
+        print(f"⚠️ {bad_count}개 샘플에 NaN/Inf 발견 — 해당 행 제거")
+        X, y, dates = X[finite_mask], y[finite_mask], dates[finite_mask]
+    if len(X) == 0:
+        raise ValueError(f"❌ 유효한 학습 데이터가 없습니다: {ticker}")
+
     if mode == "random":
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     elif mode == "last":
-        last_index = np.argmax(dates)
+        last_index = pd.to_datetime(dates).argmax()
         X_test = X[last_index:last_index+1]
         y_test = y[last_index:last_index+1]
         X_train = np.delete(X, last_index, axis=0)

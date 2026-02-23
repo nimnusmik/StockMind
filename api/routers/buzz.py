@@ -11,6 +11,7 @@ from api.dependencies import get_db, get_redis, validate_symbol
 from api.schemas.prediction import BuzzIndicatorsResponse
 from api.data.repositories.comment_repo import CommentRepository
 from api.services.cache_service import CacheService
+from api.services.sentiment_service import SentimentService
 
 
 router = APIRouter(prefix="/buzz", tags=["Community Buzz"])
@@ -77,9 +78,9 @@ async def get_buzz_indicators(
         if prev_day_volume > 0 else 0.0
     )
 
-    # 감성 속도 계산 (간단한 구현)
-    # 실제로는 시간별 감성 변화를 측정해야 함
-    sentiment_velocity = 0.0  # TODO: 구현
+    # 감성 속도 계산 (현재 1h 감성 - 이전 1h 감성)
+    sentiment_service = SentimentService(db)
+    sentiment_velocity = sentiment_service.calculate_sentiment_velocity(symbol)
 
     # 이상 활동 탐지
     # 볼륨이 평균 대비 200% 이상이면 이상 활동
@@ -200,10 +201,7 @@ def compare_activity(
     from api.config import settings
 
     comment_repo = CommentRepository(db)
-    volumes = {}
-
-    for stock in settings.SUPPORTED_SYMBOLS:
-        volumes[stock] = comment_repo.get_comment_count(stock, hours=24)
+    volumes = comment_repo.get_comment_counts_batch(settings.SUPPORTED_SYMBOLS, hours=24)
 
     # 순위 계산
     sorted_volumes = sorted(volumes.items(), key=lambda x: x[1], reverse=True)

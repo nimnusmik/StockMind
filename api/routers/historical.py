@@ -10,6 +10,7 @@ from typing import Optional
 from api.dependencies import get_db, validate_symbol
 from api.schemas.prediction import HistoricalCommentResponse
 from api.data.repositories.comment_repo import CommentRepository
+from api.services.sentiment_service import classify_text_sentiment
 
 
 router = APIRouter(prefix="/historical", tags=["Historical Data"])
@@ -54,11 +55,8 @@ def get_historical_comments(
     else:
         end = datetime.utcnow()
 
-    # 댓글 조회
-    comments = comment_repo.get_comments_by_date_range(symbol, start, end)
-
-    # limit 적용
-    limited_comments = comments[:limit]
+    # 댓글 조회 (DB 레벨 LIMIT)
+    comments = comment_repo.get_comments_by_date_range(symbol, start, end, limit=limit)
 
     # 전체 댓글 수
     total_comments = comment_repo.get_total_comment_count(symbol)
@@ -73,10 +71,10 @@ def get_historical_comments(
         comments=[
             {
                 "time": comment.comment_time.isoformat(),
-                "text": comment.comment_text[:200],  # 200자로 제한
-                "sentiment": "neutral"  # TODO: 실제 감성 분석 추가
+                "text": comment.comment_text[:200],
+                "sentiment": classify_text_sentiment(comment.comment_text)
             }
-            for comment in limited_comments
+            for comment in comments
         ]
     )
 
@@ -145,14 +143,10 @@ def get_available_date_range(
     """
     comment_repo = CommentRepository(db)
 
-    # 전체 댓글 조회 (처음과 끝만)
-    all_comments = comment_repo.get_comments_by_date_range(
-        symbol,
-        datetime(2020, 1, 1),
-        datetime.utcnow()
-    )
+    # MIN/MAX 단일 쿼리로 날짜 범위 조회
+    date_range = comment_repo.get_date_range(symbol)
 
-    if not all_comments:
+    if date_range["total_count"] == 0:
         return {
             "symbol": symbol,
             "first_comment_date": None,
@@ -161,8 +155,8 @@ def get_available_date_range(
             "total_comments": 0
         }
 
-    first_date = min(c.comment_time for c in all_comments)
-    last_date = max(c.comment_time for c in all_comments)
+    first_date = date_range["first_date"]
+    last_date = date_range["last_date"]
     total_days = (last_date - first_date).days + 1
 
     return {
@@ -170,7 +164,7 @@ def get_available_date_range(
         "first_comment_date": first_date.strftime("%Y-%m-%d"),
         "last_comment_date": last_date.strftime("%Y-%m-%d"),
         "total_days": total_days,
-        "total_comments": len(all_comments)
+        "total_comments": date_range["total_count"]
     }
 
 

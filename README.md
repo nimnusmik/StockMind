@@ -83,6 +83,23 @@ cd news/code
 echo "last" | python3 train_model.py
 ```
 
+### 5. 오프라인 백테스트 (신호 정확도 검증)
+
+metadata 기반으로 과거 데이터에 대해 신호 정확도를 평가합니다.
+
+```bash
+cd news/code
+python3 backtest.py
+
+# 단일 종목만 빠르게 테스트
+python3 backtest.py --ticker AAPL
+
+# 테스트 비율 조정 (기본 20% → 30%)
+python3 backtest.py --test-ratio 0.3
+```
+
+**출력 예시:** 평균 정확도 75%, MAE 0.55% (최근 20% 날짜 기준)
+
 ## 📊 API 엔드포인트
 
 ### 매매 신호 (핵심)

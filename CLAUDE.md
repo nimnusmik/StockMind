@@ -33,6 +33,9 @@ cd community && python3 src/migrate_csv_to_db.py
 
 # Train ML models
 cd news/code && python3 train_model.py
+
+# Offline backtest (metadata-based signal accuracy)
+cd news/code && python3 backtest.py
 ```
 
 ## Key Configuration

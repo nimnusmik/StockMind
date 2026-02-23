@@ -62,9 +62,9 @@ class MultiStockYahooFinanceCrawler:
             db_port = os.getenv('DB_PORT', '5432')
 
             self.db_engine = psycopg2.connect(
-                dbname="stockmind",
-                user="user",
-                password="password",
+                dbname=os.getenv('DB_NAME', 'stockmind'),
+                user=os.getenv('DB_USER', 'user'),
+                password=os.getenv('DB_PASSWORD'),
                 host=db_host,
                 port=db_port
             )
@@ -153,7 +153,9 @@ class MultiStockYahooFinanceCrawler:
         collected = []
         seen_ids = set()
         consecutive_old_comments = 0
-        max_consecutive_old = 10 if not sort_success else 5
+        # 최신순 정렬 성공 시: 오래된 댓글 1개 연속이면 즉시 종료 (이후는 모두 오래된 댓글)
+        # 정렬 실패 시: 10개 연속일 때 종료 (순서 보장 없음)
+        max_consecutive_old = 1 if sort_success else 10
         last_processed_index = 0
         batch_size = 50
         no_new_comments_count = 0
@@ -163,6 +165,7 @@ class MultiStockYahooFinanceCrawler:
         current_month = datetime.now().strftime("%Y%m")
         filename = f"{stock_symbol}_comments_{current_month}.csv"
         filepath = os.path.join(self.output_dir, filename)
+        csv_header_written = os.path.exists(filepath)  # 최초 1회만 확인 (race condition 방지)
         
         logger.info("🚀 최적화된 댓글 수집 시작...")
         logger.info(f"📊 배치 크기: {batch_size}, 최대 연속 오래된 댓글: {max_consecutive_old}")
@@ -226,7 +229,8 @@ class MultiStockYahooFinanceCrawler:
                 # Intermediate saving to CSV and PostgreSQL
                 if len(collected) > 0 and len(collected) % 100 == 0:
                     df = pd.DataFrame(collected[-100:])
-                    df.to_csv(filepath, mode='a', header=not os.path.exists(filepath), index=False, encoding='utf-8')
+                    df.to_csv(filepath, mode='a', header=not csv_header_written, index=False, encoding='utf-8')
+                    csv_header_written = True
                     logger.info(f"📁 CSV 저장: {filepath} ({len(collected)}개 댓글)")
                     
                     if self.db_engine:
@@ -249,6 +253,7 @@ class MultiStockYahooFinanceCrawler:
                             cursor.close()
                             logger.info(f"📁 PostgreSQL 저장: {len(collected)}개 댓글")
                         except Exception as e:
+                            self.db_engine.rollback()
                             logger.info(f"❌ PostgreSQL 저장 오류: {e}")
             
             if not self.load_more_comments(target_frame, logger, stock_symbol):
@@ -260,13 +265,16 @@ class MultiStockYahooFinanceCrawler:
             
             if rounds % 10 == 0:
                 logger.info("🧹 메모리 정리 중...")
-                target_frame.evaluate("if (window.gc) window.gc();")
+                try:
+                    target_frame.evaluate("if (window.gc) window.gc();")
+                except Exception:
+                    pass
                 time.sleep(random.uniform(1, 3))
         
         # Final saving to CSV and PostgreSQL
         if collected:
             df = pd.DataFrame(collected)
-            df.to_csv(filepath, mode='a', header=not os.path.exists(filepath), index=False, encoding='utf-8')
+            df.to_csv(filepath, mode='a', header=not csv_header_written, index=False, encoding='utf-8')
             logger.info(f"📁 최종 CSV 저장: {filepath} ({len(collected)}개 댓글)")
             
             if self.db_engine:
@@ -289,6 +297,7 @@ class MultiStockYahooFinanceCrawler:
                     cursor.close()
                     logger.info(f"📁 최종 PostgreSQL 저장: {len(collected)}개 댓글")
                 except Exception as e:
+                    self.db_engine.rollback()
                     logger.info(f"❌ PostgreSQL 최종 저장 오류: {e}")
         
         return collected
