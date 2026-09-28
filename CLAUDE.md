@@ -13,7 +13,7 @@ StockMind is a stock trading signal platform that combines community sentiment a
 Three main modules:
 
 - **api/** — FastAPI REST API backend serving trading signals, price predictions, sentiment analysis, and community buzz indicators. Uses Redis for caching and PostgreSQL for data storage.
-- **community/** — Yahoo Finance comment crawler. Playwright-based automation scrapes comments from SpotIM iframes and stores directly into PostgreSQL.
+- **community/** — Yahoo Finance community collector. `collect.py` calls Yahoo's own community GraphQL (`GetContentByAssociatedContentId`, no login) and stores posts incrementally in SQLite `community/data/community.db`. Runs hourly via launchd `com.sunmin.stockmind` (lockf-guarded). The old Playwright crawler in `community/src/` targeted OpenWeb/SpotIM iframes, which Yahoo removed in early 2026 — it collects 0 comments and is kept only for the legacy PostgreSQL data.
 - **news/** — Financial news analysis pipeline. 6-step process: fetch price data (TwelveData API) → scrape news links → extract content → NLP analysis (DistilBART summarization, FinBERT sentiment, KeyBERT keywords) → build metadata → train RandomForest model.
 
 ## Running Services
@@ -25,8 +25,8 @@ docker-compose up -d
 # Access API documentation
 open http://localhost:8001/docs
 
-# Run community crawler
-cd community && python3 src/main.py
+# Collect community posts (incremental; --summary for counts)
+cd community && python3 collect.py
 
 # Run CSV-to-DB migration
 cd community && python3 src/migrate_csv_to_db.py

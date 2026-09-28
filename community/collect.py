@@ -23,7 +23,7 @@ from pathlib import Path
 
 TICKERS = ["AAPL", "GOOG", "META", "TSLA", "MSFT", "AMZN", "NVDA", "NFLX"]
 BACKFILL_UNTIL = "2026-07-01"  # 이 날짜까지 과거 글을 채운다 (ISO 문자열 비교)
-MAX_PAGES = 2000               # 한 종목 한 번 실행의 안전 상한 (10개/페이지)
+MAX_PAGES = 5000               # 한 종목 한 번 실행의 안전 상한 (10개/페이지). NVDA는 3개월에 2000페이지를 넘음
 DELAY = 0.7                    # 요청 간격(초). 비공식 API라 천천히
 
 HERE = Path(__file__).parent
