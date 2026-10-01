@@ -111,7 +111,7 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-2">신뢰도</p>
-                <p className="text-2xl font-bold">{(signalData.confidence * 100).toFixed(0)}%</p>
+                <p className="text-2xl font-bold">{signalData.confidence.toFixed(0)}%</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-2">예측 변동</p>

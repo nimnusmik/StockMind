@@ -8,12 +8,13 @@ Yahoo가 2026년 초 OpenWeb iframe 댓글을 자체 커뮤니티로 바꾸면�
 - 단, 가장 오래된 저장 글이 BACKFILL_UNTIL보다 최근이면 계속 내려가서 과거를 채운다.
   중간에 끊겨도 다음 실행이 이어받는다.
 
-실행: python3 collect.py            (8종목)
+실행: python3 collect.py            (15종목)
       python3 collect.py AAPL TSLA  (일부만)
       python3 collect.py --summary  (종목·날짜별 개수만 출력)
 """
 import json
 import re
+import socket
 import sqlite3
 import sys
 import time
@@ -21,7 +22,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-TICKERS = ["AAPL", "GOOG", "META", "TSLA", "MSFT", "AMZN", "NVDA", "NFLX"]
+TICKERS = ["AAPL", "GOOG", "META", "TSLA", "MSFT", "AMZN", "NVDA", "NFLX",  # 초대형 기술주
+           "GME", "AMC", "PLTR", "SOFI", "RIVN", "COIN", "HOOD"]  # 개인투자자 인기주 (2026-09-29 추가)
 BACKFILL_UNTIL = "2026-07-01"  # 이 날짜까지 과거 글을 채운다 (ISO 문자열 비교)
 MAX_PAGES = 5000               # 한 종목 한 번 실행의 안전 상한 (10개/페이지). NVDA는 3개월에 2000페이지를 넘음
 DELAY = 0.7                    # 요청 간격(초). 비공식 API라 천천히
@@ -114,6 +116,13 @@ def summary(con):
 
 
 if __name__ == "__main__":
+    # 맥이 잠에서 깨자마자 실행되면 와이파이가 아직 안 붙어 전 종목이 DNS 오류로 실패한다 → 최대 3분 기다림
+    for _ in range(18):
+        try:
+            socket.getaddrinfo("yfc-server-query.finance.yahoo.com", 443)
+            break
+        except OSError:
+            time.sleep(10)
     con = open_db()
     if "--summary" in sys.argv:
         summary(con)

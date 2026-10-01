@@ -64,7 +64,8 @@ async def predict_stock_price(
             detail=f"모델 또는 특징 데이터를 찾을 수 없습니다: {symbol}"
         )
 
-    predicted_price = prediction['predicted_price']
+    # 모델 출력 = 변동률(%)
+    predicted_rate = prediction['predicted_price']
 
     # 현재 가격 (TwelveData API)
     current_price = await get_current_price(symbol, cache_service)
@@ -75,8 +76,9 @@ async def predict_stock_price(
             detail=f"현재 주가 조회 실패: {symbol}. TWELVEDATA_API_KEY 설정을 확인하세요."
         )
 
-    # 변동률 계산
-    predicted_change_pct = ((predicted_price - current_price) / current_price) * 100
+    # 실제 예측 가격 계산 (현재가 × (1 + 변동률/100))
+    predicted_price = current_price * (1 + predicted_rate / 100)
+    predicted_change_pct = predicted_rate
 
     response_data = {
         "symbol": symbol,

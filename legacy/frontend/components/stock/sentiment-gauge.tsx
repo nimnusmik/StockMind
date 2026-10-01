@@ -9,16 +9,18 @@ interface SentimentGaugeProps {
 }
 
 export function SentimentGauge({ data }: SentimentGaugeProps) {
-  const { combined_score, combined_label, news_sentiment, community_sentiment } = data
+  const { composite_score, confidence_level, news_sentiment, community_sentiment, news_weight, community_weight } = data
 
   // 감성 점수를 0-100 스케일로 변환 (-1~1 → 0~100)
-  const normalizedScore = ((combined_score + 1) / 2) * 100
+  const normalizedScore = ((composite_score + 1) / 2) * 100
+
+  const combined_label = composite_score > 0.3 ? '긍정적' : composite_score < -0.3 ? '부정적' : '중립'
 
   const chartData = [
     {
       name: '통합 감성',
       value: normalizedScore,
-      fill: combined_score > 0.3 ? '#10b981' : combined_score < -0.3 ? '#ef4444' : '#f59e0b',
+      fill: composite_score > 0.3 ? '#10b981' : composite_score < -0.3 ? '#ef4444' : '#f59e0b',
     },
   ]
 
@@ -51,9 +53,9 @@ export function SentimentGauge({ data }: SentimentGaugeProps) {
               </RadialBarChart>
             </ResponsiveContainer>
             <div className="absolute text-center">
-              <p className={`text-3xl font-bold ${getSentimentColor(combined_score)}`}>
-                {combined_score > 0 ? '+' : ''}
-                {combined_score.toFixed(2)}
+              <p className={`text-3xl font-bold ${getSentimentColor(composite_score)}`}>
+                {composite_score > 0 ? '+' : ''}
+                {composite_score.toFixed(2)}
               </p>
               <p className="text-sm text-muted-foreground">{combined_label}</p>
             </div>
@@ -61,27 +63,24 @@ export function SentimentGauge({ data }: SentimentGaugeProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <p className="text-sm font-medium">뉴스 감성 (60%)</p>
+              <p className="text-sm font-medium">뉴스 감성 ({(news_weight * 100).toFixed(0)}%)</p>
               <div className="flex items-center gap-2">
-                <span className={`text-lg font-semibold ${getSentimentColor(news_sentiment.score)}`}>
-                  {news_sentiment.score > 0 ? '+' : ''}
-                  {news_sentiment.score.toFixed(2)}
+                <span className={`text-lg font-semibold ${getSentimentColor(news_sentiment)}`}>
+                  {news_sentiment > 0 ? '+' : ''}
+                  {news_sentiment.toFixed(2)}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  신뢰 {(news_sentiment.confidence * 100).toFixed(0)}%
+                  신뢰 {confidence_level.toFixed(0)}%
                 </span>
               </div>
             </div>
 
             <div className="space-y-1">
-              <p className="text-sm font-medium">커뮤니티 감성 (40%)</p>
+              <p className="text-sm font-medium">커뮤니티 감성 ({(community_weight * 100).toFixed(0)}%)</p>
               <div className="flex items-center gap-2">
-                <span className={`text-lg font-semibold ${getSentimentColor(community_sentiment.score)}`}>
-                  {community_sentiment.score > 0 ? '+' : ''}
-                  {community_sentiment.score.toFixed(2)}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  신뢰 {(community_sentiment.confidence * 100).toFixed(0)}%
+                <span className={`text-lg font-semibold ${getSentimentColor(community_sentiment)}`}>
+                  {community_sentiment > 0 ? '+' : ''}
+                  {community_sentiment.toFixed(2)}
                 </span>
               </div>
             </div>

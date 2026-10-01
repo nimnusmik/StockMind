@@ -1,95 +1,36 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 프로젝트 개요
 
-## Project Overview
+Yahoo Finance 커뮤니티 댓글(사람 군중)이 다음 날 주가(변동성·방향)를 예측하는지 정직하게 검증하는 연구 프로젝트.
+최종 목표: 사람 군중 vs AI 군중(LLM 에이전트 여러 개) 비교.
 
-StockMind is a stock trading signal platform that combines community sentiment analysis from Yahoo Finance and financial news NLP to generate AI-based buy/hold/sell signals. It targets 8 tech stocks: AAPL, GOOG, META, TSLA, MSFT, AMZN, NVDA, NFLX.
+## 구조
 
-**Current Status**: MVP complete with FastAPI backend, PostgreSQL database (12,969 comments), Redis caching, and 8 trained RandomForest ML models.
+- **community/** — 현재 쓰는 코드와 데이터 (이 경로는 launchd가 참조하므로 옮기지 말 것)
+  - `collect.py` — 커뮤니티 수집기. Yahoo 자체 커뮤니티 GraphQL(`GetContentByAssociatedContentId`, 로그인 불필요) → SQLite `data/community.db`. 7/1까지 backfill 후 증분.
+    launchd `com.sunmin.stockmind`가 매시 23분 실행, `data/.collect.lock`으로 중복 실행 방지. 로그 `data/collect.log`.
+  - `feed_query.graphql` — 수집기가 쓰는 GraphQL 쿼리
+  - `prices.py` — yfinance 일별 주가 (수집 종목 + SPY) → `data/prices.csv`
+  - `data/export/` — 엑셀용 CSV 스냅샷
+- **docs/** — 교수 컨택 자료
+- **legacy/** — 옛 StockMind 앱(FastAPI·Next.js·뉴스 파이프라인·Playwright 크롤러)과 2025년 7월 데이터. 현재 미사용, 참고용.
+  옛 성능 수치(정확도 75% 등)는 데이터 누수로 무효.
 
-## Architecture
-
-Three main modules:
-
-- **api/** — FastAPI REST API backend serving trading signals, price predictions, sentiment analysis, and community buzz indicators. Uses Redis for caching and PostgreSQL for data storage.
-- **community/** — Yahoo Finance community collector. `collect.py` calls Yahoo's own community GraphQL (`GetContentByAssociatedContentId`, no login) and stores posts incrementally in SQLite `community/data/community.db`. Runs hourly via launchd `com.sunmin.stockmind` (lockf-guarded). The old Playwright crawler in `community/src/` targeted OpenWeb/SpotIM iframes, which Yahoo removed in early 2026 — it collects 0 comments and is kept only for the legacy PostgreSQL data.
-- **news/** — Financial news analysis pipeline. 6-step process: fetch price data (TwelveData API) → scrape news links → extract content → NLP analysis (DistilBART summarization, FinBERT sentiment, KeyBERT keywords) → build metadata → train RandomForest model.
-
-## Running Services
-
-```bash
-# Start all services (PostgreSQL, Redis, FastAPI)
-docker-compose up -d
-
-# Access API documentation
-open http://localhost:8001/docs
-
-# Collect community posts (incremental; --summary for counts)
-cd community && python3 collect.py
-
-# Run CSV-to-DB migration
-cd community && python3 src/migrate_csv_to_db.py
-
-# Train ML models
-cd news/code && python3 train_model.py
-
-# Offline backtest (metadata-based signal accuracy)
-cd news/code && python3 backtest.py
-```
-
-## Key Configuration
-
-**Community Crawler:**
-- Stock list, cutoff dates, user agents: `community/src/config.py`
-- DB schema: `community/init_db.sql`
-
-**API:**
-- Environment variables: `api/.env`
-- Settings: `api/config.py`
-- Trading signal thresholds: BUY (>+2% & sentiment >0.3), SELL (<-2% & sentiment <-0.3)
-
-**Docker:**
-- PostgreSQL: `localhost:5433` (mapped from container 5432)
-- Redis: `localhost:6379`
-- FastAPI: `localhost:8001`
-- DB credentials: database=`stockmind`, user=`user`, password=`password`, host=`db` (inside container) or `localhost` (outside)
-
-## API Endpoints
-
-- `GET /api/v1/predictions/{symbol}/price` — ML price prediction
-- `GET /api/v1/signals/{symbol}` — Trading signals (BUY/HOLD/SELL)
-- `GET /api/v1/sentiment/{symbol}/community` — Community sentiment
-- `GET /api/v1/sentiment/{symbol}/news` — News sentiment
-- `GET /api/v1/sentiment/{symbol}/combined` — Combined sentiment (60% news + 40% community)
-- `GET /api/v1/buzz/{symbol}` — Community activity metrics
-- `GET /api/v1/historical/{symbol}/comments` — Historical comments
-
-## News Pipeline Setup
+## 실행
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install pandas bs4 selenium webdriver_manager keybert matplotlib scikit-learn
-pip install torch transformers sentence-transformers
+cd community
+python3 collect.py              # 15종목 증분 수집
+python3 collect.py GME AMC      # 일부만
+python3 collect.py --summary    # 종목별 개수
+python3 prices.py               # 주가 갱신
 ```
 
-Run scripts sequentially: `1st_stock_graph.py` → `2nd_create_csv_with_link.py` → `3rd_add_content_in_csv.py` → `4th_analysis.py` → `5th_make_metadata.py` → `train_model.py`
+## 규칙
 
-Models are saved to `api/models/{SYMBOL}_rf_model.pkl` for API use.
-
-## Data Flow
-
-1. **Community Crawler** → PostgreSQL `comments` table (12,969 rows)
-2. **News Pipeline** → Feature CSVs (392 dimensions) → Trained ML models
-3. **API** loads models → Combines sentiment → Generates trading signals
-4. **Redis** caches results (5min-24hr TTL) for performance
-
-## Conventions
-
-- Code comments and log messages are in **Korean**
-- Logging uses emoji indicators (✅ ❌ 🔄 📊 💾)
-- Community logs stored per-stock: `community/logs/{SYMBOL}/`
-- CSV format: columns `time`, `text`, `stock_symbol`; time format "12 Jul, 2025 11:48 PM"
-- Duplicate detection uses MD5 hash of comment text
-- ML features: 384D embeddings + 3D sentiment + 5D keywords = 392D total
+- 종목: 초대형 기술주 8개(AAPL GOOG META TSLA MSFT AMZN NVDA NFLX) + 개인투자자 인기주 7개(GME AMC PLTR SOFI RIVN COIN HOOD)
+- DB 시간(`created_at`)은 UTC. 하루 경계는 뉴욕 장마감(16:00 ET) 기준으로 끊어 미래 정보 누수를 막는다.
+- 성능 주장은 시간 분할, t→t+1, 기준선("항상 HOLD", 랜덤) 비교 후에만.
+- 비공식 API라 요청 간격을 둔다(`DELAY`). 원본 댓글 데이터는 공개 저장소에 올리지 않는다(`data/`는 .gitignore).
+- 코드 주석·로그는 한국어.

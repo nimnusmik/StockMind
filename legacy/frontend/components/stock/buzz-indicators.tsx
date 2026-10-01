@@ -10,24 +10,26 @@ interface BuzzIndicatorsProps {
 }
 
 export function BuzzIndicators({ data }: BuzzIndicatorsProps) {
-  const { comment_volume, unique_users, avg_sentiment, buzz_score, trend } = data
+  const { current_volume, hour_over_hour_change, sentiment_velocity, buzz_score, activity_level } = data
 
-  const getTrendIcon = () => {
-    switch (trend) {
-      case 'rising':
+  const getActivityIcon = () => {
+    switch (activity_level) {
+      case 'HIGH':
+      case 'VERY_HIGH':
         return <TrendingUp className="h-5 w-5 text-green-600" />
-      case 'falling':
+      case 'LOW':
         return <TrendingDown className="h-5 w-5 text-red-600" />
       default:
         return <Minus className="h-5 w-5 text-gray-600" />
     }
   }
 
-  const getTrendColor = () => {
-    switch (trend) {
-      case 'rising':
+  const getActivityColor = () => {
+    switch (activity_level) {
+      case 'HIGH':
+      case 'VERY_HIGH':
         return 'bg-green-50 text-green-700 border-green-200'
-      case 'falling':
+      case 'LOW':
         return 'bg-red-50 text-red-700 border-red-200'
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200'
@@ -39,9 +41,9 @@ export function BuzzIndicators({ data }: BuzzIndicatorsProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>커뮤니티 버즈</CardTitle>
-          <Badge className={getTrendColor()}>
-            {getTrendIcon()}
-            <span className="ml-1 capitalize">{trend}</span>
+          <Badge className={getActivityColor()}>
+            {getActivityIcon()}
+            <span className="ml-1">{activity_level}</span>
           </Badge>
         </div>
       </CardHeader>
@@ -51,33 +53,35 @@ export function BuzzIndicators({ data }: BuzzIndicatorsProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-muted-foreground">
               <MessageSquare className="h-4 w-4" />
-              <span className="text-sm">댓글 수</span>
+              <span className="text-sm">댓글 수 (24h)</span>
             </div>
-            <p className="text-3xl font-bold">{comment_volume.toLocaleString()}</p>
+            <p className="text-3xl font-bold">{current_volume.toLocaleString()}</p>
           </div>
 
-          {/* 활성 사용자 */}
+          {/* 시간별 변화율 */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Users className="h-4 w-4" />
-              <span className="text-sm">활성 사용자</span>
+              <span className="text-sm">시간별 변화</span>
             </div>
-            <p className="text-3xl font-bold">{unique_users.toLocaleString()}</p>
+            <p className={`text-3xl font-bold ${hour_over_hour_change > 0 ? 'text-green-600' : hour_over_hour_change < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+              {hour_over_hour_change > 0 ? '+' : ''}{hour_over_hour_change.toFixed(1)}%
+            </p>
           </div>
 
-          {/* 평균 감성 */}
+          {/* 감성 속도 */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Activity className="h-4 w-4" />
-              <span className="text-sm">평균 감성</span>
+              <span className="text-sm">감성 속도</span>
             </div>
             <p
               className={`text-3xl font-bold ${
-                avg_sentiment > 0.3 ? 'text-green-600' : avg_sentiment < -0.3 ? 'text-red-600' : 'text-gray-600'
+                sentiment_velocity > 0.3 ? 'text-green-600' : sentiment_velocity < -0.3 ? 'text-red-600' : 'text-gray-600'
               }`}
             >
-              {avg_sentiment > 0 ? '+' : ''}
-              {avg_sentiment.toFixed(2)}
+              {sentiment_velocity > 0 ? '+' : ''}
+              {sentiment_velocity.toFixed(2)}
             </p>
           </div>
 

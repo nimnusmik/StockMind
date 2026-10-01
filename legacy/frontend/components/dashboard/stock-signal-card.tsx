@@ -51,15 +51,15 @@ export function StockSignalCard({ data }: StockSignalCardProps) {
           <div className="space-y-1">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">신뢰도</span>
-              <span className="font-semibold">{(confidence * 100).toFixed(0)}%</span>
+              <span className="font-semibold">{confidence.toFixed(0)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className={cn(
                   'h-2 rounded-full transition-all',
-                  confidence > 0.7 ? 'bg-green-500' : confidence > 0.5 ? 'bg-yellow-500' : 'bg-red-500'
+                  confidence > 70 ? 'bg-green-500' : confidence > 50 ? 'bg-yellow-500' : 'bg-red-500'
                 )}
-                style={{ width: `${confidence * 100}%` }}
+                style={{ width: `${Math.min(confidence, 100)}%` }}
               />
             </div>
           </div>
