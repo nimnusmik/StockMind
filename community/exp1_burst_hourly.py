@@ -65,6 +65,7 @@ p80 = df.volume.groupby(key).transform(lambda x: x.expanding(15).quantile(0.8).s
 next_vol = df.groupby("symbol").volume.shift(-1)
 next_p80 = p80.groupby(df.symbol).shift(-1)
 df["target"] = (next_vol > next_p80).astype(float).where(next_vol.notna() & next_p80.notna())
+df["next_start"] = df.groupby("symbol").start.shift(-1)
 
 SETS = {"거래기록": ["vol_rel", "move_rel"], "댓글량": ["com_rel", "auth_rel"]}
 SETS["둘 다"] = SETS["거래기록"] + SETS["댓글량"]
@@ -110,3 +111,32 @@ for slot, grp in data.groupby("slot"):
     i = grp.index.values
     print(f"  {slot} 블록 → 다음 봉: " + "  ".join(f"{n} {average_precision_score(y[i], scores[n][i]):.3f}" for n in SETS)
           + f"  (급증 비율 {y[i].mean():.2f})")
+
+# 5) 장외 블록의 개선(둘 다 - 거래기록)이 실적 발표 때문인지: 실적 블록을 빼고 다시 채점
+#    data/earnings.csv 만드는 법: uv run --no-project --with yfinance --with lxml (README 참고)
+earn = pd.read_csv(HERE / "data" / "earnings.csv")
+earn["time"] = pd.to_datetime(earn.time, utc=True).dt.tz_convert("America/New_York")
+night = data[data.slot == "15:30"]
+hit_strict = pd.Series(False, index=night.index)  # 그 밤에 실적이 나온 블록
+hit_wide = pd.Series(False, index=night.index)    # 실적 후 3일 안에 개장하는 블록까지
+for _, e in earn.iterrows():
+    m = night.symbol == e.symbol
+    hit_strict |= m & (night.start < e.time) & (e.time < night.next_start + pd.Timedelta(hours=1))
+    hit_wide |= m & (night.next_start >= e.time - pd.Timedelta(hours=18)) & (night.next_start <= e.time + pd.Timedelta(days=3))
+
+
+def gain_with_ci(idx, n_boot=1000):
+    """둘 다 - 거래기록 PR-AUC 차이와, 날짜 묶음 부트스트랩 95% 구간 (모델은 고정, 채점만 재표집)."""
+    gain = lambda i: average_precision_score(y[i], scores["둘 다"][i]) - average_precision_score(y[i], scores["거래기록"][i])
+    day = data.start.dt.date.values[idx]
+    uniq = np.unique(day)
+    r = np.random.default_rng(1)
+    boot = [gain(np.concatenate([idx[day == d] for d in r.choice(uniq, len(uniq))])) for _ in range(n_boot)]
+    return gain(idx), *np.percentile(boot, [2.5, 97.5])
+
+
+print("\n장외 블록(15:30 → 다음 날 9:30 봉): 댓글을 더했을 때 PR-AUC 개선")
+for label, keep in [("전체", hit_strict | True),("실적 밤 제외", ~hit_strict), ("실적 후 3일 제외", ~hit_wide)]:
+    idx = night.index.values[np.asarray(keep, dtype=bool)]
+    g, lo, hi = gain_with_ci(idx)
+    print(f"  {label:10} 블록 {len(idx):4}개, 급증 {y[idx].sum():3}번 → 개선 {g:+.3f}  95% 구간 [{lo:+.3f}, {hi:+.3f}]")
