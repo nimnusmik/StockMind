@@ -125,9 +125,9 @@ for _, e in earn.iterrows():
     hit_wide |= m & (night.next_start >= e.time - pd.Timedelta(hours=18)) & (night.next_start <= e.time + pd.Timedelta(days=3))
 
 
-def gain_with_ci(idx, n_boot=1000):
+def gain_with_ci(idx, sc=scores, n_boot=1000):
     """둘 다 - 거래기록 PR-AUC 차이와, 날짜 묶음 부트스트랩 95% 구간 (모델은 고정, 채점만 재표집)."""
-    gain = lambda i: average_precision_score(y[i], scores["둘 다"][i]) - average_precision_score(y[i], scores["거래기록"][i])
+    gain = lambda i: average_precision_score(y[i], sc["둘 다"][i]) - average_precision_score(y[i], sc["거래기록"][i])
     day = data.start.dt.date.values[idx]
     uniq = np.unique(day)
     r = np.random.default_rng(1)
@@ -140,3 +140,28 @@ for label, keep in [("전체", hit_strict | True),("실적 밤 제외", ~hit_str
     idx = night.index.values[np.asarray(keep, dtype=bool)]
     g, lo, hi = gain_with_ci(idx)
     print(f"  {label:10} 블록 {len(idx):4}개, 급증 {y[idx].sum():3}번 → 개선 {g:+.3f}  95% 구간 [{lo:+.3f}, {hi:+.3f}]")
+
+# 6) 평가 방식 비교 — 종목 빼기는 다른 종목의 '미래 날짜'로 학습하므로, 시간으로도 나눠 본다
+CUT = pd.Timestamp("2026-09-01", tz="America/New_York")  # 7~8월 학습, 9월 시험
+past, future = (data.start < CUT).values, (data.start >= CUT).values
+syms = data.symbol.values
+schemes = {
+    "종목 빼기(기존)": [(syms != s, syms == s) for s in np.unique(syms)],
+    "시간 나누기": [(past, future)],
+    "시간+종목 둘 다": [(past & (syms != s), future & (syms == s)) for s in np.unique(syms)],
+}
+print(f"\n평가 방식 비교 (시간 나누기: {CUT:%m-%d} 이전 학습, 이후 시험)")
+print(f"  {'방식':14}{'거래기록':>8}{'댓글량':>8}{'둘 다':>8}{'랜덤':>7}   장외 개선(실적 밤 제외)")
+for label, splits in schemes.items():
+    sc = {}
+    for name, cols in SETS.items():
+        s = np.full(len(data), np.nan)
+        for tr, te in splits:
+            m = make_pipeline(StandardScaler(), LogisticRegression()).fit(data.loc[tr, cols], y[tr])
+            s[te] = m.predict_proba(data.loc[te, cols])[:, 1]
+        sc[name] = s
+    ev = ~np.isnan(sc["거래기록"])
+    aps = "".join(f"{average_precision_score(y[ev], sc[n][ev]):8.3f}" for n in SETS)
+    idx = night.index.values[(~hit_strict).values & ev[night.index.values]]
+    g, lo, hi = gain_with_ci(idx, sc)
+    print(f"  {label:14}{aps}{y[ev].mean():7.3f}   {g:+.3f} [{lo:+.3f}, {hi:+.3f}] (장외 {len(idx)}블록)")
