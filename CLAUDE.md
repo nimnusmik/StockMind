@@ -12,6 +12,9 @@ Yahoo Finance 커뮤니티 댓글(사람 군중)이 다음 날 주가(변동성�
     launchd `com.sunmin.stockmind`가 매시 23분 실행, `data/.collect.lock`으로 중복 실행 방지. 로그 `data/collect.log`.
   - `feed_query.graphql` — 수집기가 쓰는 GraphQL 쿼리
   - `prices.py` — yfinance 일별 주가 (수집 종목 + SPY) → `data/prices.csv`
+  - `minute_bars.py` — 1분 봉 누적 → `data/prices_1m.csv.gz` (yfinance가 30일치만 줘서 매일 받음). launchd `com.sunmin.stockmind.minute` 매일 14:47, 로그 `data/minute.log`
+  - `sentiment.py` — 글별 감정(cardiffnlp twitter-roberta) → `data/sentiment.csv`. torch가 커서 `uv run --no-project --with transformers --with torch --with pandas python sentiment.py`
+  - `exp1_burst*.py`, `exp2_sentiment.py`, `exp3_resolution.py` — 실험 (Morstatter 2026 "The Conversation Turns First"의 주식판). 성능 판단은 시간 분할 결과 기준
   - `data/export/` — 엑셀용 CSV 스냅샷
 - **docs/** — 교수 컨택 자료
 - **legacy/** — 옛 StockMind 앱(FastAPI·Next.js·뉴스 파이프라인·Playwright 크롤러)과 2025년 7월 데이터. 현재 미사용, 참고용.
