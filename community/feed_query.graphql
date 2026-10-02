@@ -1,0 +1,249 @@
+query GetContentByAssociatedContentId($contentId: String!, $sortOrder: SortOrder, $first: Int!, $after: Cursor, $postUuid: UUID!, $includePost: Boolean!) {
+  getContentByAssociatedContentId(contentId: $contentId, sortOrder: $sortOrder) {
+    contentUuid
+    newFeed(first: $first, after: $after) {
+      ...Feed
+      __typename
+    }
+    __typename
+  }
+  ... on Query @include(if: $includePost) {
+    getPost(uuid: $postUuid) {
+      ...FeedPost
+      __typename
+    }
+    __typename
+  }
+}
+fragment PageInfo on PageInfo {
+  endCursor
+  hasNextPage
+  __typename
+}
+fragment BasePrice on Prices {
+  last {
+    close
+    timestamp
+    __typename
+  }
+  reference {
+    close
+    timestamp
+    __typename
+  }
+  __typename
+}
+fragment AssetOneWeek on Asset {
+  name
+  symbol
+  currency
+  prices(period: ONE_WEEK) {
+    ...BasePrice
+    __typename
+  }
+  __typename
+}
+fragment BaseUser on User {
+  uuid
+  isMuted
+  followerAssets
+  profile {
+    uuid
+    username
+    name
+    picture
+    private
+    badges
+    bio
+    website
+    creator
+    investorIdentity
+    acceptedTerms
+    __typename
+  }
+  __typename
+}
+fragment UserWithRelationships on User {
+  ...BaseUser
+  relationships {
+    backRelationship
+    relationship
+    __typename
+  }
+  __typename
+}
+fragment BaseUpvotes on Votes {
+  myVote
+  upvoteCount
+  upvoteAum
+  __typename
+}
+fragment BaseTrade on Trade {
+  uuid
+  contentType
+  tradeDate
+  tradePrice
+  tradeType
+  asset {
+    ...AssetOneWeek
+    __typename
+  }
+  user {
+    ...UserWithRelationships
+    __typename
+  }
+  votes {
+    ...BaseUpvotes
+    __typename
+  }
+  __typename
+}
+fragment BaseComment on Comment {
+  __typename
+  body
+  createdAt
+  updatedAt
+  clientRequestId
+  contentType
+  uuid
+  archivedAt
+  appealed
+  status
+  isMutedByViewer
+  parentComment {
+    uuid
+    __typename
+  }
+  rootContent {
+    ... on Content {
+      contentType
+      uuid
+      __typename
+    }
+    ... on Post {
+      associatedContentUuid
+      associatedContent {
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  user {
+    ...UserWithRelationships
+    __typename
+  }
+  votes {
+    ...BaseUpvotes
+    __typename
+  }
+}
+fragment CommentEdge on CommentEdge {
+  uuid
+  cursor
+  node {
+    ...BaseComment
+    comments(first: 0, after: null) {
+      count
+      pageInfo {
+        ...PageInfo
+        __typename
+      }
+      edges {
+        uuid
+        cursor
+        node {
+          ...BaseComment
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  __typename
+}
+fragment Comments on Comments {
+  count
+  pageInfo {
+    ...PageInfo
+    __typename
+  }
+  edges {
+    ...CommentEdge
+    __typename
+  }
+  __typename
+}
+fragment FeedTrade on Trade {
+  ...BaseTrade
+  comments(first: 1, after: null) {
+    ...Comments
+    __typename
+  }
+  __typename
+}
+fragment BasePost on Post {
+  archivedAt
+  associatedContentUuid
+  body
+  createdAt
+  publishedAt
+  updatedAt
+  uuid
+  clientRequestId
+  contentType
+  user {
+    ...UserWithRelationships
+    __typename
+  }
+  votes {
+    ...BaseUpvotes
+    __typename
+  }
+  associatedContent {
+    __typename
+    ... on QuoteSummaryPage {
+      symbol
+      url
+      __typename
+    }
+  }
+  __typename
+}
+fragment FeedPost on Post {
+  ...BasePost
+  comments(first: 1, after: null) {
+    ...Comments
+    __typename
+  }
+  __typename
+}
+fragment FeedComment on Comment {
+  ...BaseComment
+  comments(first: 1, after: null) {
+    ...Comments
+    __typename
+  }
+  __typename
+}
+fragment Feed on Feed {
+  __typename
+  pageInfo {
+    ...PageInfo
+    __typename
+  }
+  edges {
+    cursor
+    node {
+      uuid
+      contentType
+      ...FeedTrade
+      ...FeedPost
+      ...FeedComment
+      __typename
+    }
+    __typename
+  }
+}

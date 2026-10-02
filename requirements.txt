@@ -1,3 +1,0 @@
-pandas
-playwright
-psycopg2-binary
