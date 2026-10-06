@@ -62,6 +62,19 @@ All 12 next-day configurations had 95% intervals containing 0.5.
 
 Spearman correlation of daily sentiment (relative to the ticker's norm) with same-day excess return: **0.31** (p < 0.001); with next-day excess return: **−0.02** (p = 0.49). Reading the most extreme posts confirmed the classifier labels them correctly, so this is not a measurement artifact.
 
+**5. Contrarian / capitulation tests** (experiments 8–11, added 2026-10-05)
+
+Hypothesis: when a board tilts bearish with high posting heat, the price is about to turn — and there may be a *dose* threshold ("how much rage marks the bottom?"). Stance (bull/bear/neutral) comes from FinTwitBERT, which agreed with a hand-labelled 50-post key on 78% of bull/bear posts vs 59% for the mood-only sentiment model.
+
+| Test | Result |
+|---|---|
+| Bearish tilt + heat for N days → next-day rise (N searched on Jul–Aug, scored on Sep) | N=1 chosen; only 2 NVDA signal days in Sep — verdict deferred |
+| Same signal vs days with a *similar drop* but no signal (next day) | **0.00%** [−0.64, +0.71] — the signal mostly rebroadcasts the drop |
+| Dose-response on falling days: toxicity / bear tilt / heat quintiles → next 5 days | No monotonic pattern (ρ = −0.03 / −0.14 / +0.07); all top-vs-rest CIs contain 0 |
+| Dose-response with a surrender lexicon ("sold everything", "I give up", …) | ρ = −0.05; top-vs-rest −1.29pp [−3.39, +0.72]; only 0.9% of posts match, so the measure is coarse |
+
+A 5-day NVDA bounce after signals (+4.09%) exists in-sample but the hypothesis was formed from the same data; it is **pre-registered** for judgment on data collected after 2026-10-05 only (see `exp9_drop_vs_comments.py`).
+
 ## Limitations
 
 15 tickers, three months, one earnings season, a 20-trading-day test window. Earnings dates are controlled; other news is not. LLM stance labels (used in the paper) have not been tried. Results are correlational.
@@ -78,7 +91,12 @@ python3 exp2_sentiment.py                         # sentiment: bursts and direct
 python3 exp3_resolution.py                        # 1-hour vs 30-minute
 python3 exp5_all_features.py                      # direction, all features
 python3 exp6_volatility.py                        # volatility vs HAR
-python3 plot_sentiment_deciles.py                 # figure above
+python3 plot_sentiment_deciles.py                 # sentiment-deciles figure
+uv run --no-project --with transformers --with torch --with pandas python stance.py   # bull/bear/neutral labels
+python3 exp8_contrarian.py                        # contrarian signal, N searched then confirmed
+python3 exp9_drop_vs_comments.py                  # drop-matched comparison (+ pre-registered re-test)
+python3 exp10_capitulation.py                     # rage dose-response on falling days
+python3 exp11_surrender.py                        # surrender-lexicon dose-response
 ```
 
 `data/earnings.csv` comes from yfinance `get_earnings_dates` (needs `lxml`). Older app code and 2025 data are in `legacy/` (unused; the earlier accuracy figures there were invalidated by look-ahead leakage).
