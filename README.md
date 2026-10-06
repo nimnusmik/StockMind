@@ -29,6 +29,8 @@ Raw posts are not published (`community/data/` is git-ignored).
 
 **1. Next-hour volume burst** (next bar volume above the ticker's past 80th percentile for that time of day) — PR-AUC
 
+![Comments vs next move](community/figures/comments_vs_next_move.png)
+
 | Features | PR-AUC |
 |---|---|
 | Random | 0.142 |
@@ -48,6 +50,8 @@ An overnight effect (after-hours comments improving the opening-hour forecast, +
 
 All 12 next-day configurations had 95% intervals containing 0.5.
 
+![Excess sentiment deciles](community/figures/excess_sentiment.png)
+
 **3. Next-day volatility** (Garman–Klass) — QLIKE, lower is better
 
 | Model | QLIKE |
@@ -60,7 +64,7 @@ All 12 next-day configurations had 95% intervals containing 0.5.
 
 ![Sentiment deciles](community/figures/sentiment_deciles.png)
 
-Spearman correlation of daily sentiment (relative to the ticker's norm) with same-day excess return: **0.31** (p < 0.001); with next-day excess return: **−0.02** (p = 0.49). Reading the most extreme posts confirmed the classifier labels them correctly, so this is not a measurement artifact.
+Spearman correlation of daily sentiment (relative to the ticker's norm) with same-day excess return: **0.32** (p < 0.001); with next-day excess return: **−0.01** (p = 0.74). Reading the most extreme posts confirmed the classifier labels them correctly, so this is not a measurement artifact.
 
 **5. Contrarian / capitulation tests** (experiments 8–11, added 2026-10-05)
 
@@ -72,6 +76,8 @@ Hypothesis: when a board tilts bearish with high posting heat, the price is abou
 | Same signal vs days with a *similar drop* but no signal (next day) | **0.00%** [−0.64, +0.71] — the signal mostly rebroadcasts the drop |
 | Dose-response on falling days: toxicity / bear tilt / heat quintiles → next 5 days | No monotonic pattern (ρ = −0.03 / −0.14 / +0.07); all top-vs-rest CIs contain 0 |
 | Dose-response with a surrender lexicon ("sold everything", "I give up", …) | ρ = −0.05; top-vs-rest −1.29pp [−3.39, +0.72]; only 0.9% of posts match, so the measure is coarse |
+
+![Contrarian signal, NVDA](community/figures/contrarian_nvda.png)
 
 A 5-day NVDA bounce after signals (+4.09%) exists in-sample but the hypothesis was formed from the same data; it is **pre-registered** for judgment on data collected after 2026-10-05 only (see `exp9_drop_vs_comments.py`).
 
@@ -100,7 +106,3 @@ python3 exp11_surrender.py                        # surrender-lexicon dose-respo
 ```
 
 `data/earnings.csv` comes from yfinance `get_earnings_dates` (needs `lxml`). Older app code and 2025 data are in `legacy/` (unused; the earlier accuracy figures there were invalidated by look-ahead leakage).
-
----
-
-한국어 안내: 프로젝트 구조와 규칙은 `CLAUDE.md` 참고.

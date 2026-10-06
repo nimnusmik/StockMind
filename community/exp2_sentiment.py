@@ -1,12 +1,13 @@
-"""실험 2: 댓글 '내용'(감정)이 도움이 되나? — 1시간 블록, 두 가지 문제
+"""Experiment 2: does comment CONTENT (sentiment) help? — 1-hour blocks, two problems
 
-A. 다음 봉 거래량 급증 (실험 1과 같은 정답) — 감정을 더하면 나아지나
-B. 다음 봉 주가 방향 (오를까 내릴까) — 논문 실험 4(매수 방향)의 주식판. 주식엔 매수/매도 흐름 데이터가 없어 수익률 부호로 대신
+A. Next-bar volume burst (same target as experiment 1) — does adding sentiment improve it?
+B. Next-bar price direction (up or down) — stock version of the paper's experiment 4 (buy direction).
+   Stocks have no buy/sell flow data, so the sign of the return stands in.
 
-감정 = 글마다 (긍정 확률 - 부정 확률), 블록 평균. 댓글 없는 블록은 0(중립).
-평가 = 기본은 시간 나누기(9/1 이전 학습, 이후 시험), 참고로 종목 빼기.
-준비: exp1_burst_hourly.py(→ data/prices_1h.csv), sentiment.py(→ data/sentiment.csv)
-실행: python3 exp2_sentiment.py
+Sentiment = (pos prob - neg prob) per post, averaged per block. Blocks with no comments = 0 (neutral).
+Eval = time split by default (train before Sep 1, test after); leave-ticker-out shown for reference.
+Prereqs: exp1_burst_hourly.py (-> data/prices_1h.csv), sentiment.py (-> data/sentiment.csv)
+Run: python3 exp2_sentiment.py
 """
 import sqlite3
 from pathlib import Path
@@ -22,7 +23,7 @@ HERE = Path(__file__).parent
 START = pd.Timestamp("2026-07-01 09:30", tz="America/New_York")
 CUT = pd.Timestamp("2026-09-01", tz="America/New_York")
 
-# 1) 1시간 봉 + 댓글(감정 포함) → 블록
+# 1) 1-hour bars + posts (with sentiment) -> blocks
 bars = pd.read_csv(HERE / "data" / "prices_1h.csv")
 bars["start"] = pd.to_datetime(bars.start, utc=True).dt.tz_convert("America/New_York")
 bars = bars.sort_values(["symbol", "start"]).reset_index(drop=True)
@@ -53,7 +54,7 @@ df[["comments", "authors"]] = df[["comments", "authors"]].fillna(0)
 df.loc[df.start < START, ["comments", "authors"]] = np.nan
 df["net"] = df.pos_share - df.neg_share
 
-# 2) 특징 (모두 과거 정보만)
+# 2) features (past information only)
 key = [df.symbol, df.slot]
 past_slot = lambda s: s.groupby(key).transform(lambda x: x.expanding(5).mean().shift(1))
 past_sym = lambda s: s.groupby(df.symbol).transform(lambda x: x.expanding(20).mean().shift(1))
@@ -63,11 +64,11 @@ df["vol_rel"] = np.log1p(df.volume) - past_slot(np.log1p(df.volume))
 df["move_rel"] = df.ret.abs() / past_slot(df.ret.abs())
 df["com_rel"] = np.log1p(df.comments) - past_slot(np.log1p(df.comments))
 df["auth_rel"] = np.log1p(df.authors) - past_slot(np.log1p(df.authors))
-df["sent_rel"] = df.sent - past_sym(df.sent.where(has))  # 그 종목 평소 분위기 대비
+df["sent_rel"] = df.sent - past_sym(df.sent.where(has))  # vs the ticker's usual mood
 for c in ["sent", "net", "sent_rel"]:
     df[c] = df[c].where(has, 0.0).fillna(0.0)
 
-# 3) 정답
+# 3) targets
 g = df.groupby("symbol")
 p80 = df.volume.groupby(key).transform(lambda x: x.expanding(15).quantile(0.8).shift(1))
 nv, np80 = g.volume.shift(-1), p80.groupby(df.symbol).shift(-1)
@@ -78,12 +79,12 @@ df["up"] = (nr > 0).astype(float).where(nr.notna() & (nr != 0))
 TRADE_B, TRADE_D = ["vol_rel", "move_rel"], ["ret", "ret4"]
 ATT, SENT = ["com_rel", "auth_rel"], ["sent", "sent_rel", "net"]
 PROBLEMS = {
-    "A. 거래량 급증 (PR-AUC)": ("burst", average_precision_score, {
-        "거래기록": TRADE_B, "댓글량": ATT, "감정": SENT, "댓글량+감정": ATT + SENT,
-        "거래기록+댓글량": TRADE_B + ATT, "거래기록+댓글량+감정": TRADE_B + ATT + SENT}),
-    "B. 주가 방향 (ROC-AUC)": ("up", roc_auc_score, {
-        "거래기록": TRADE_D, "댓글량": ATT, "감정": SENT,
-        "거래기록+감정": TRADE_D + SENT, "거래기록+댓글량+감정": TRADE_D + ATT + SENT}),
+    "A. volume burst (PR-AUC)": ("burst", average_precision_score, {
+        "trading": TRADE_B, "comments": ATT, "sentiment": SENT, "comments+sentiment": ATT + SENT,
+        "trading+comments": TRADE_B + ATT, "trading+comments+sentiment": TRADE_B + ATT + SENT}),
+    "B. price direction (ROC-AUC)": ("up", roc_auc_score, {
+        "trading": TRADE_D, "comments": ATT, "sentiment": SENT,
+        "trading+sentiment": TRADE_D + SENT, "trading+comments+sentiment": TRADE_D + ATT + SENT}),
 }
 
 
@@ -96,7 +97,7 @@ def predict(d, y, cols, splits):
 
 
 def gain_ci(y, s_new, s_base, metric, day, n=1000):
-    """s_new - s_base 점수 차이와 날짜 묶음 부트스트랩 95% 구간 (모델 고정, 채점만 재표집)."""
+    """s_new - s_base score gain with a date-block bootstrap 95% interval (models fixed; only scoring resampled)."""
     f = lambda i: metric(y[i], s_new[i]) - metric(y[i], s_base[i])
     uniq, r = np.unique(day), np.random.default_rng(1)
     pos = {d: np.where(day == d)[0] for d in uniq}
@@ -109,23 +110,23 @@ for title, (target, metric, sets) in PROBLEMS.items():
     d = df.dropna(subset=allcols + [target]).reset_index(drop=True)
     y = d[target].astype(int).values
     syms, fut = d.symbol.values, (d.start >= CUT).values
-    schemes = {"시간 나누기": [(~fut, fut)],
-               "종목 빼기(참고)": [(syms != s, syms == s) for s in np.unique(syms)]}
-    print(f"\n{title}  — 관측 {len(d)}개, 정답 비율 {y.mean():.3f}, 시험(9월) {fut.sum()}개")
-    print(f"  {'특징':18}" + "".join(f"{k:>14}" for k in schemes) + f"{'9월 장외 블록':>14}")
+    schemes = {"time split": [(~fut, fut)],
+               "leave-ticker-out (ref)": [(syms != s, syms == s) for s in np.unique(syms)]}
+    print(f"\n{title}  — {len(d)} observations, positive rate {y.mean():.3f}, test (Sep) {fut.sum()}")
+    print(f"  {'features':28}" + "".join(f"{k:>24}" for k in schemes) + f"{'Sep overnight':>14}")
     res = {k: {n: predict(d, y, c, sp) for n, c in sets.items()} for k, sp in schemes.items()}
     night = fut & (d.slot == "15:30").values
     for n in sets:
-        row = "".join(f"{metric(y[~np.isnan(res[k][n])], res[k][n][~np.isnan(res[k][n])]):14.3f}" for k in schemes)
-        print(f"  {n:18}{row}{metric(y[night], res['시간 나누기'][n][night]):14.3f}")
-    base = "거래기록"
-    print(f"  {'랜덤 기준':18}{(y[fut].mean() if target == 'burst' else 0.5):14.3f}")
-    ts = res["시간 나누기"]
+        row = "".join(f"{metric(y[~np.isnan(res[k][n])], res[k][n][~np.isnan(res[k][n])]):24.3f}" for k in schemes)
+        print(f"  {n:28}{row}{metric(y[night], res['time split'][n][night]):14.3f}")
+    base = "trading"
+    print(f"  {'random baseline':28}{(y[fut].mean() if target == 'burst' else 0.5):24.3f}")
+    ts = res["time split"]
     day = d.start.dt.date.values
-    for n in [k for k in sets if k.startswith("거래기록+")]:
-        for lbl, m in [("9월 전체", fut), ("9월 장외", night)]:
+    for n in [k for k in sets if k.startswith("trading+")]:
+        for lbl, m in [("Sep all", fut), ("Sep overnight", night)]:
             gch, lo, hi = gain_ci(y[m], ts[n][m], ts[base][m], metric, day[m])
-            print(f"  {n} - 거래기록 ({lbl}): {gch:+.3f} [{lo:+.3f}, {hi:+.3f}]")
+            print(f"  {n} - trading ({lbl}): {gch:+.3f} [{lo:+.3f}, {hi:+.3f}]")
     if target == "up":
-        acc = ((ts["거래기록+감정"][fut] > 0.5) == y[fut]).mean()
-        print(f"  정확도(9월, 거래기록+감정) {acc:.3f} vs 늘 다수 쪽으로 찍기 {max(y[fut].mean(), 1 - y[fut].mean()):.3f}")
+        acc = ((ts["trading+sentiment"][fut] > 0.5) == y[fut]).mean()
+        print(f"  accuracy (Sep, trading+sentiment) {acc:.3f} vs always guess the majority {max(y[fut].mean(), 1 - y[fut].mean()):.3f}")

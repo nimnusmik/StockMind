@@ -1,8 +1,8 @@
-"""댓글 감정 점수 매기기 (논문과 같은 계열: Cardiff NLP twitter-roberta, 긍정/중립/부정 확률).
+"""Sentiment scores per post (same family as the paper: Cardiff NLP twitter-roberta; pos/neu/neg probabilities).
 
-실행 (torch가 커서 시스템 python 대신 uv 임시 환경):
+Run (torch is heavy, so use an ephemeral uv env instead of system python):
   uv run --no-project --with transformers --with torch --with pandas python sentiment.py
-출력: data/sentiment.csv (uuid, neg, neu, pos). 이미 매긴 글은 건너뛰므로 다시 실행하면 새 글만 추가.
+Output: data/sentiment.csv (uuid, neg, neu, pos). Already-scored posts are skipped, so re-running adds new posts only.
 """
 import sqlite3
 from pathlib import Path
@@ -19,7 +19,7 @@ BATCH = 64
 posts = pd.read_sql("SELECT uuid, body FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
 if OUT.exists():
     posts = posts[~posts.uuid.isin(pd.read_csv(OUT, usecols=["uuid"]).uuid)]
-print(f"새로 매길 글 {len(posts)}개")
+print(f"posts to score: {len(posts)}")
 
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 tok = AutoTokenizer.from_pretrained(MODEL)

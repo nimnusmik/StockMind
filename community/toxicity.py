@@ -1,8 +1,8 @@
-"""댓글 악플 점수 (논문과 같은 Detoxify: 위협·모욕·욕설·정체성 공격 등).
+"""Toxicity scores per post (Detoxify, as in the paper: threat, insult, obscenity, identity attack, ...).
 
-실행 (torch가 커서 uv 임시 환경):
+Run (torch is heavy, so use an ephemeral uv env):
   uv run --no-project --with detoxify --with pandas python toxicity.py
-출력: data/toxicity.csv (uuid + 점수 6개). 이미 매긴 글은 건너뜀.
+Output: data/toxicity.csv (uuid + 6 scores). Already-scored posts are skipped.
 """
 import sqlite3
 from pathlib import Path
@@ -18,7 +18,7 @@ BATCH = 64
 posts = pd.read_sql("SELECT uuid, body FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
 if OUT.exists():
     posts = posts[~posts.uuid.isin(pd.read_csv(OUT, usecols=["uuid"]).uuid)]
-print(f"새로 매길 글 {len(posts)}개")
+print(f"posts to score: {len(posts)}")
 
 model = Detoxify("original", device="mps" if torch.backends.mps.is_available() else "cpu")
 for start in range(0, len(posts), BATCH * 20):

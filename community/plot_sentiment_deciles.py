@@ -1,11 +1,13 @@
-"""얼마나 긍정/부정이어야 주가가 움직이나? — 감정 10등분별 다음 날 주가
+"""How positive/negative must comments be before the price moves? — next-day price by sentiment decile
 
-감정 = 하루 댓글의 평균 (긍정 확률 - 부정 확률), 그 종목의 '과거' 평균 대비 (원래 비관적인 게시판 보정)
-하루 = 전 거래일 16:00 ET ~ 당일 16:00 ET, 댓글 5개 이상인 날만
-수익률 = 종목 - SPY (시장 전체 움직임 제거)
-세 칸: ① 다음 날 수익률 ② 다음 날 움직임 크기(평소 대비) ③ 오늘 수익률 — ③이 기울면 감정이 주가를 뒤따라간다는 뜻
-오차 막대 = 날짜 묶음 부트스트랩 95% 구간 (같은 날 종목들은 같이 움직이므로)
-실행: python3 plot_sentiment_deciles.py → figures/sentiment_deciles.png
+Sentiment = daily mean of (pos prob - neg prob), relative to the ticker's PAST mean (corrects boards that are
+            pessimistic by nature)
+A day = previous trading day 16:00 ET to 16:00 ET, days with >= 5 comments only
+Return = ticker - SPY (removes the market-wide move)
+Three panels: (1) next-day return (2) size of the next-day move (vs usual) (3) TODAY's return —
+            if (3) slopes, sentiment follows the price
+Error bars = date-block bootstrap 95% intervals (same-day tickers co-move)
+Run: python3 plot_sentiment_deciles.py -> figures/sentiment_deciles.png
 """
 import sqlite3
 from pathlib import Path
@@ -19,7 +21,7 @@ HERE = Path(__file__).parent
 FIG = HERE / "figures" / "sentiment_deciles.png"
 START, MIN_POSTS, BINS = "2026-07-02", 5, 10
 
-# 1) 글 → 거래일, 감정 붙이기
+# 1) posts -> trading day, attach sentiment
 posts = pd.read_sql("SELECT uuid, symbol, created_at, body FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
 posts = posts.merge(pd.read_csv(HERE / "data" / "sentiment.csv"), on="uuid")
 posts["s"] = posts.pos - posts.neg
@@ -33,7 +35,7 @@ posts = posts[idx < len(days)].copy()
 posts["date"] = days[idx[idx < len(days)]]
 daily = posts.groupby(["symbol", "date"]).agg(n=("s", "size"), sent=("s", "mean")).reset_index()
 
-# 2) 수익률 (SPY 대비) + 감정의 '평소 대비'
+# 2) returns (vs SPY) + sentiment vs the ticker's usual
 px = prices.pivot(index="date", columns="symbol", values="close").pct_change()
 ex = px.drop(columns="SPY").sub(px.SPY, axis=0).stack().rename("ex").reset_index()
 df = ex.merge(daily, on=["symbol", "date"], how="left").sort_values(["symbol", "date"])
@@ -45,8 +47,8 @@ df["sent_rel"] = df.sent - df.sent.where(valid).groupby(df.symbol).transform(lam
 df = df[valid & (df.date >= START)].dropna(subset=["sent_rel", "ex_next", "absx_next", "ex"]).reset_index(drop=True)
 df["bin"] = pd.qcut(df.sent_rel, BINS, labels=False) + 1
 
-# 3) 10등분별 평균 + 날짜 묶음 부트스트랩
-cols = {"ex_next": 100, "absx_next": 1, "ex": 100}  # 수익률은 % 단위로
+# 3) decile means + date-block bootstrap
+cols = {"ex_next": 100, "absx_next": 1, "ex": 100}  # returns in %
 mean = df.groupby("bin")[list(cols)].mean() * pd.Series(cols)
 dates = df.date.unique()
 rng = np.random.default_rng(0)
@@ -56,13 +58,12 @@ boot = [pd.concat([by_date[d] for d in rng.choice(dates, len(dates))]).groupby("
 lo = pd.concat(boot).groupby(level=0).quantile(0.025)
 hi = pd.concat(boot).groupby(level=0).quantile(0.975)
 
-# 4) 그림 — 칸마다 측정값이 달라 y축은 칸별 (같은 칸 안에선 한 축)
-plt.rcParams.update({"font.family": "AppleGothic", "axes.unicode_minus": False})
+# 4) figure — each panel measures something different, so y-axes are per panel
 INK, INK2, GRID, SURF, DOT = "#0b0b0b", "#52514e", "#e6e5e1", "#fcfcfb", "#2a78d6"
 fig, axes = plt.subplots(1, 3, figsize=(15, 5), facecolor=SURF)
-panels = [("ex_next", "① 다음 날 수익률 (SPY 대비, %)", 0),
-          ("absx_next", "② 다음 날 움직임 크기 (평소 대비, 배)", 1),
-          ("ex", "③ 오늘 수익률 (SPY 대비, %) — 역방향 점검", 0)]
+panels = [("ex_next", "(1) next-day return (vs SPY, %)", 0),
+          ("absx_next", "(2) size of next-day move (x usual)", 1),
+          ("ex", "(3) TODAY's return (vs SPY, %) — reverse check", 0)]
 x = mean.index.values
 for ax, (c, title, ref) in zip(axes, panels):
     ax.set_facecolor(SURF)
@@ -71,7 +72,7 @@ for ax, (c, title, ref) in zip(axes, panels):
     ax.plot(x, mean[c], color=DOT, lw=2, marker="o", ms=8, mfc=DOT, mec=SURF, mew=2)
     ax.set_title(title, loc="left", fontsize=11, color=INK)
     ax.set_xticks(x)
-    ax.set_xticklabels(["가장\n부정"] + [str(i) for i in x[1:-1]] + ["가장\n긍정"])
+    ax.set_xticklabels(["most\nnegative"] + [str(i) for i in x[1:-1]] + ["most\npositive"])
     ax.grid(axis="y", color=GRID, lw=0.8)
     ax.set_axisbelow(True)
     for s in ["top", "right"]:
@@ -79,28 +80,28 @@ for ax, (c, title, ref) in zip(axes, panels):
     for s in ["left", "bottom"]:
         ax.spines[s].set_color(GRID)
     ax.tick_params(colors=INK2)
-axes[1].set_xlabel("오늘 댓글 감정 (종목 평소 대비, 10등분)", color=INK2)
+axes[1].set_xlabel("today's comment sentiment (vs the ticker's usual, deciles)", color=INK2)
 
 r_next = spearmanr(df.sent_rel, df.ex_next)
 r_today = spearmanr(df.sent_rel, df.ex)
-fig.suptitle("얼마나 긍정/부정이어야 다음 날 주가가 움직일까?", x=0.04, ha="left", fontsize=15, color=INK, fontweight="bold")
+fig.suptitle("How extreme must sentiment be before the next-day price moves?", x=0.04, ha="left", fontsize=15, color=INK, fontweight="bold")
 fig.text(0.04, 0.89,
-         f"Yahoo Finance 커뮤니티 15종목, {df.date.min():%m-%d}~{df.date.max():%m-%d}, 종목·하루 {len(df)}개 (칸당 약 {len(df) // BINS}개). "
-         f"점 = 평균, 막대 = 날짜 묶음 부트스트랩 95% 구간. 순위상관: 감정↔다음 날 {r_next.statistic:.2f}, 감정↔오늘 {r_today.statistic:.2f}",
+         f"Yahoo Finance community, 15 tickers, {df.date.min():%m-%d}~{df.date.max():%m-%d}, {len(df)} ticker-days (~{len(df) // BINS} per bin). "
+         f"Dot = mean, bar = date-block bootstrap 95% CI. Rank corr: sentiment vs next day {r_next.statistic:.2f}, vs today {r_today.statistic:.2f}",
          ha="left", fontsize=9.5, color=INK2)
 fig.tight_layout(rect=(0, 0, 1, 0.87))
 fig.savefig(FIG, dpi=180, facecolor=SURF)
 
-print(f"종목·하루 {len(df)}개")
+print(f"{len(df)} ticker-days")
 print((mean.round(3)).assign(n=df.groupby("bin").size()).to_string())
-print(f"\n감정 ↔ 다음 날 수익률 ρ = {r_next.statistic:.3f} (p = {r_next.pvalue:.3f})")
-print(f"감정 ↔ 오늘 수익률     ρ = {r_today.statistic:.3f} (p = {r_today.pvalue:.3f})  ← 감정이 주가를 뒤따라가는지")
-print(f"저장: {FIG}")
+print(f"\nsentiment vs next-day return rho = {r_next.statistic:.3f} (p = {r_next.pvalue:.3f})")
+print(f"sentiment vs TODAY's return  rho = {r_today.statistic:.3f} (p = {r_today.pvalue:.3f})  <- does sentiment follow the price?")
+print(f"saved: {FIG}")
 
-# 5) 극단 칸의 실제 글 확인 (모델이 은어·비꼼을 잘못 읽는지)
-for b, label in [(1, "가장 부정 칸"), (BINS, "가장 긍정 칸")]:
+# 5) read the most extreme posts (does the model misread slang or sarcasm?)
+for b, label in [(1, "most negative bin"), (BINS, "most positive bin")]:
     keys = df.loc[df.bin == b, ["symbol", "date"]]
     sample = posts.merge(keys, on=["symbol", "date"]).sort_values("s", ascending=(b == 1)).head(8)
-    print(f"\n[{label}] 감정 점수가 가장 극단인 글 8개")
+    print(f"\n[{label}] 8 most extreme posts by sentiment score")
     for _, r in sample.iterrows():
         print(f"  {r.s:+.2f} {r.symbol:5} {str(r.body).replace(chr(10), ' ')[:110]}")

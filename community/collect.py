@@ -1,16 +1,17 @@
-"""Yahoo Finance 커뮤니티 글 수집기 (표준 라이브러리만 사용).
+"""Yahoo Finance community post collector (standard library only).
 
-Yahoo가 2026년 초 OpenWeb iframe 댓글을 자체 커뮤니티로 바꾸면서 옛 Playwright 크롤러(src/)가 0개를 수집했다.
-새 커뮤니티는 GraphQL(GetContentByAssociatedContentId)로 글을 불러오고, 로그인이 필요 없다.
+In early 2026 Yahoo replaced its OpenWeb iframe comments with its own community, and the old
+Playwright crawler (src/) started collecting zero posts. The new community loads posts through
+GraphQL (GetContentByAssociatedContentId) and requires no login.
 
-동작: 종목마다 최신 글부터 과거로 페이지를 넘기며 SQLite에 저장한다.
-- 이미 저장된 글로만 채워진 페이지를 만나면 멈춘다 (증분 수집).
-- 단, 가장 오래된 저장 글이 BACKFILL_UNTIL보다 최근이면 계속 내려가서 과거를 채운다.
-  중간에 끊겨도 다음 실행이 이어받는다.
+How it works: for each ticker, page from the newest posts back in time and store into SQLite.
+- Stop when a page contains only already-stored posts (incremental collection).
+- Exception: if the oldest stored post is newer than BACKFILL_UNTIL, keep paging to fill the
+  past. If interrupted, the next run picks up where this one left off.
 
-실행: python3 collect.py            (15종목)
-      python3 collect.py AAPL TSLA  (일부만)
-      python3 collect.py --summary  (종목·날짜별 개수만 출력)
+Run:  python3 collect.py            (all 15 tickers)
+      python3 collect.py AAPL TSLA  (subset)
+      python3 collect.py --summary  (counts per ticker only)
 """
 import json
 import re
@@ -22,11 +23,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-TICKERS = ["AAPL", "GOOG", "META", "TSLA", "MSFT", "AMZN", "NVDA", "NFLX",  # 초대형 기술주
-           "GME", "AMC", "PLTR", "SOFI", "RIVN", "COIN", "HOOD"]  # 개인투자자 인기주 (2026-09-29 추가)
-BACKFILL_UNTIL = "2026-07-01"  # 이 날짜까지 과거 글을 채운다 (ISO 문자열 비교)
-MAX_PAGES = 5000               # 한 종목 한 번 실행의 안전 상한 (10개/페이지). NVDA는 3개월에 2000페이지를 넘음
-DELAY = 0.7                    # 요청 간격(초). 비공식 API라 천천히
+TICKERS = ["AAPL", "GOOG", "META", "TSLA", "MSFT", "AMZN", "NVDA", "NFLX",  # mega-cap tech
+           "GME", "AMC", "PLTR", "SOFI", "RIVN", "COIN", "HOOD"]  # retail favorites (added 2026-09-29)
+BACKFILL_UNTIL = "2026-07-01"  # backfill history down to this date (ISO string comparison)
+MAX_PAGES = 5000               # safety cap per ticker per run (10 posts/page); NVDA exceeds 2000 pages in 3 months
+DELAY = 0.7                    # seconds between requests; unofficial API, so go slowly
 
 HERE = Path(__file__).parent
 DB = HERE / "data" / "community.db"
@@ -42,12 +43,12 @@ def log(msg):
 
 
 def content_id(symbol):
-    """종목 커뮤니티 페이지 HTML에 박힌 게시판 ID(finmb_숫자)를 찾는다."""
+    """Find the board ID (finmb_<digits>) embedded in the ticker's community page HTML."""
     req = urllib.request.Request(f"https://finance.yahoo.com/quote/{symbol}/community/", headers={"user-agent": UA})
     html = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "ignore")
     ids = set(re.findall(r"finmb_\d+", html))
     if len(ids) != 1:
-        raise RuntimeError(f"{symbol} 게시판 ID를 하나로 특정 못함: {ids}")
+        raise RuntimeError(f"{symbol}: could not pin down a single board ID: {ids}")
     return ids.pop()
 
 
@@ -63,10 +64,10 @@ def fetch_page(cid, after):
             data = json.loads(res.read())
             feed = data["data"]["getContentByAssociatedContentId"]["newFeed"]
             return [e["node"] for e in feed["edges"] if e.get("node")], feed["pageInfo"]
-        except Exception as e:  # 네트워크 흔들림은 재시도, 3번 실패면 이 종목은 다음 실행으로
-            log(f"  재시도 {attempt + 1}/3: {e}")
+        except Exception as e:  # retry network hiccups; after 3 failures leave this ticker to the next run
+            log(f"  retry {attempt + 1}/3: {e}")
             time.sleep(5 * (attempt + 1))
-    raise RuntimeError("요청 3회 실패")
+    raise RuntimeError("request failed 3 times")
 
 
 def open_db():
@@ -102,21 +103,21 @@ def collect(con, symbol):
         if not info.get("hasNextPage") or (page_oldest and page_oldest < BACKFILL_UNTIL):
             break
         if added == 0 and not need_backfill:
-            break  # 이미 아는 글만 나옴 → 따라잡기 끝
+            break  # only known posts left -> caught up
         after = info.get("endCursor")
         time.sleep(DELAY)
-    log(f"{symbol} ({cid}): 새 글 {new}개, {pages}페이지")
+    log(f"{symbol} ({cid}): {new} new posts, {pages} pages")
 
 
 def summary(con):
-    print("종목  전체     최초                 최근")
+    print("sym   total    first                last")
     for sym, n, lo, hi in con.execute(
             "SELECT symbol, COUNT(*), MIN(created_at), MAX(created_at) FROM posts GROUP BY symbol ORDER BY symbol"):
         print(f"{sym:5} {n:6}  {lo}  {hi}")
 
 
 if __name__ == "__main__":
-    # 맥이 잠에서 깨자마자 실행되면 와이파이가 아직 안 붙어 전 종목이 DNS 오류로 실패한다 → 최대 3분 기다림
+    # Right after the Mac wakes, Wi-Fi may not be up yet and every ticker fails with DNS errors -> wait up to 3 min
     for _ in range(18):
         try:
             socket.getaddrinfo("yfc-server-query.finance.yahoo.com", 443)
@@ -133,6 +134,6 @@ if __name__ == "__main__":
             collect(con, sym)
         except Exception as e:
             failed.append(sym)
-            log(f"{sym} 실패: {e}")
+            log(f"{sym} failed: {e}")
     summary(con)
     sys.exit(1 if failed else 0)

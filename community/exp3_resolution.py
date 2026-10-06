@@ -1,10 +1,10 @@
-"""실험 3: 블록을 잘게 쪼개면(1시간 → 30분) 댓글량이 더 쓸모 있어지나?
+"""Experiment 3: do finer blocks (1 hour -> 30 minutes) make comment volume more useful?
 
-미리 정한 비교는 1시간 vs 30분 두 개뿐 (여러 개 해보고 좋은 것만 고르는 것 방지).
-30분 봉은 최근 60일만 받을 수 있어서 두 단위 모두 같은 60일로 맞춘다.
-정답·특징은 실험 1과 같음 (같은 종목·같은 시간대 과거 대비, 급증 = 과거 80분위 초과).
-평가 = 시간 나누기: 9/15 이전 학습, 이후 시험 (앞쪽 약 3주는 과거 이력 쌓는 데 쓰임).
-실행: python3 exp3_resolution.py
+Only two resolutions were pre-specified: 1h vs 30m (prevents trying many and keeping the best).
+yfinance serves 30-minute bars for the last 60 days only, so both resolutions use the same 60 days.
+Target and features as in experiment 1 (relative to the same ticker and slot's past; burst = above the past 80th percentile).
+Eval = time split: train before Sep 15, test after (the first ~3 weeks build up history).
+Run: python3 exp3_resolution.py
 """
 import sqlite3
 from pathlib import Path
@@ -22,8 +22,8 @@ from collect import TICKERS
 HERE = Path(__file__).parent
 NY = "America/New_York"
 CUT = pd.Timestamp("2026-09-15", tz=NY)
-SETS = {"거래기록": ["vol_rel", "move_rel"], "댓글량": ["com_rel", "auth_rel"]}
-SETS["둘 다"] = SETS["거래기록"] + SETS["댓글량"]
+SETS = {"trading": ["vol_rel", "move_rel"], "comments": ["com_rel", "auth_rel"]}
+SETS["both"] = SETS["trading"] + SETS["comments"]
 
 posts = pd.read_sql("SELECT symbol, created_at, username FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
 posts["t"] = pd.to_datetime(posts.created_at, utc=True).dt.tz_convert(NY)
@@ -59,7 +59,7 @@ def build(interval):
     p80 = df.volume.groupby(key).transform(lambda x: x.expanding(15).quantile(0.8).shift(1))
     nv, np80 = df.groupby("symbol").volume.shift(-1), p80.groupby(df.symbol).shift(-1)
     df["target"] = (nv > np80).astype(float).where(nv.notna() & np80.notna())
-    return df.dropna(subset=SETS["둘 다"] + ["target"]).reset_index(drop=True)
+    return df.dropna(subset=SETS["both"] + ["target"]).reset_index(drop=True)
 
 
 def gain_ci(y, a, b, day, n=1000):
@@ -71,9 +71,9 @@ def gain_ci(y, a, b, day, n=1000):
 
 
 built = {iv: build(iv) for iv in ["1h", "30m"]}
-first = max(d.start.min() for d in built.values())  # 두 단위의 시작일을 같게
-print(f"공통 기간 {first:%m-%d} ~, 학습 ~{CUT:%m-%d}, 시험 {CUT:%m-%d}~\n")
-print(f"{'단위':5}{'블록':>7}{'칸당 댓글 0인 비율':>14}{'거래기록':>9}{'댓글량':>8}{'둘 다':>8}{'랜덤':>7}   둘 다 - 거래기록 (시험 전체 / 장외)")
+first = max(d.start.min() for d in built.values())  # align both resolutions to the same first day
+print(f"shared period {first:%m-%d} ~, train until {CUT:%m-%d}, test from {CUT:%m-%d}\n")
+print(f"{'res':5}{'blocks':>7}{'zero-comment share':>19}{'trading':>9}{'comments':>9}{'both':>8}{'random':>7}   both - trading (test all / overnight)")
 for iv, d in built.items():
     d = d[d.start >= first].reset_index(drop=True)
     y = d.target.astype(int).values
@@ -87,7 +87,7 @@ for iv, d in built.items():
     night = te & (d.slot == "15:30").values
     out = []
     for m in [te, night]:
-        g, lo, hi = gain_ci(y[m], sc["둘 다"][m], sc["거래기록"][m], day[m])
+        g, lo, hi = gain_ci(y[m], sc["both"][m], sc["trading"][m], day[m])
         out.append(f"{g:+.3f} [{lo:+.3f}, {hi:+.3f}]")
     zero = (d.comments[te] == 0).mean()
-    print(f"{iv:5}{te.sum():7}{zero:14.2f}{aps[:8]:>9}{aps[8:]}{y[te].mean():7.3f}   {out[0]} / {out[1]}")
+    print(f"{iv:5}{te.sum():7}{zero:19.2f}{aps[:8]:>9}{aps[8:]}{y[te].mean():7.3f}   {out[0]} / {out[1]}")

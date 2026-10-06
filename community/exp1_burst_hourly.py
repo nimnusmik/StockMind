@@ -1,10 +1,12 @@
-"""실험 1-시간판: 지금 1시간 블록의 댓글로 다음 1시간 거래량 급증을 맞히나?
+"""Experiment 1, hourly: do this hour's comments predict a volume burst in the next hour?
 
-블록 = 정규장 1시간 봉(9:30, 10:30 … 15:30 ET, 하루 7개). 15:30 블록은 다음 날 9:30 개장 직전까지의 장외 댓글을 포함.
-정답 = 다음 봉 거래량 > 그 종목·같은 시간대의 '과거' 거래량 80번째 백분위 (장중 U자 패턴 제거, 누수 없음)
-특징 = 같은 종목·같은 시간대의 과거 평균 대비 값. 평가 = 종목 하나씩 통째로 빼고 테스트.
+Blocks  = regular-session 1-hour bars (9:30, 10:30 ... 15:30 ET, 7 per day). The 15:30 block also
+          holds after-hours comments up to the next day's 9:30 open.
+Target  = next bar's volume > the ticker's PAST 80th percentile for that time of day
+          (removes the intraday U-shape; no leakage)
+Features = relative to the same ticker and time slot's past mean. Eval = leave one whole ticker out.
 
-실행: python3 exp1_burst_hourly.py   (1시간 봉은 data/prices_1h.csv에 저장)
+Run: python3 exp1_burst_hourly.py   (1-hour bars are saved to data/prices_1h.csv)
 """
 import sqlite3
 from pathlib import Path
@@ -23,7 +25,7 @@ HERE = Path(__file__).parent
 START = pd.Timestamp("2026-07-01 09:30", tz="America/New_York")
 LARGE = ["AAPL", "GOOG", "META", "TSLA", "MSFT", "AMZN", "NVDA", "NFLX"]
 
-# 1) 1시간 봉 받기 (오늘 봉은 진행 중일 수 있어 제외)
+# 1) fetch 1-hour bars (exclude today: bars may still be forming)
 raw = yf.download(TICKERS, start="2026-06-01", interval="1h", auto_adjust=True, progress=False)
 bars = raw.stack(level=1, future_stack=True).reset_index()
 bars.columns = [c.lower() for c in bars.columns]
@@ -34,7 +36,7 @@ bars.to_csv(HERE / "data" / "prices_1h.csv", index=False)
 bars = bars.sort_values(["symbol", "start"]).reset_index(drop=True)
 bars["slot"] = bars.start.dt.strftime("%H:%M")
 
-# 2) 댓글 → 그 시각을 포함하는 블록 (블록 k = k번째 봉 시작 ~ 다음 봉 시작)
+# 2) posts -> the block containing their timestamp (block k = k-th bar start to the next bar start)
 con = sqlite3.connect(HERE / "data" / "community.db")
 posts = pd.read_sql("SELECT symbol, created_at, username FROM posts", con)
 posts["t"] = pd.to_datetime(posts.created_at, utc=True).dt.tz_convert("America/New_York")
@@ -51,9 +53,9 @@ counts = pd.concat(parts).groupby(["symbol", "start"]).agg(
 df = bars.merge(counts, on=["symbol", "start"], how="left")
 df[["comments", "authors"]] = df[["comments", "authors"]].fillna(0)
 df["absr"] = df.groupby("symbol").close.pct_change().abs()
-df.loc[df.start < START, ["comments", "authors"]] = np.nan  # 댓글 수집 전 구간은 0이 아니라 '모름'
+df.loc[df.start < START, ["comments", "authors"]] = np.nan  # before collection started it is "unknown", not 0
 
-# 3) 같은 종목·같은 시간대의 과거 평균 대비 (최소 5일 이력)
+# 3) relative to the same ticker and slot past mean (min 5 days of history)
 key = [df.symbol, df.slot]
 past_mean = lambda s: s.groupby(key).transform(lambda x: x.expanding(5).mean().shift(1))
 df["vol_rel"] = np.log1p(df.volume) - past_mean(np.log1p(df.volume))
@@ -67,12 +69,12 @@ next_p80 = p80.groupby(df.symbol).shift(-1)
 df["target"] = (next_vol > next_p80).astype(float).where(next_vol.notna() & next_p80.notna())
 df["next_start"] = df.groupby("symbol").start.shift(-1)
 
-SETS = {"거래기록": ["vol_rel", "move_rel"], "댓글량": ["com_rel", "auth_rel"]}
-SETS["둘 다"] = SETS["거래기록"] + SETS["댓글량"]
-data = df.dropna(subset=SETS["둘 다"] + ["target"]).reset_index(drop=True)
+SETS = {"trading": ["vol_rel", "move_rel"], "comments": ["com_rel", "auth_rel"]}
+SETS["both"] = SETS["trading"] + SETS["comments"]
+data = df.dropna(subset=SETS["both"] + ["target"]).reset_index(drop=True)
 y = data.target.astype(int).values
 
-# 4) 종목 하나씩 빼고 학습·예측
+# 4) leave-one-ticker-out fit/predict
 scores = {}
 for name, cols in SETS.items():
     s = np.empty(len(data))
@@ -91,34 +93,34 @@ def per_ticker_ap(s):
 rng = np.random.default_rng(0)
 rand = np.mean([per_ticker_ap(rng.random(len(data))).mean() for _ in range(200)])
 
-print(f"관측 {len(data)}개 (종목 {data.symbol.nunique()}개, {data.start.min():%m-%d}~{data.start.max():%m-%d}), "
-      f"급증 {y.sum()}번 (비율 {y.mean():.3f})\n")
-print(f"{'':8}{'PR-AUC(전체)':>12}{'ROC-AUC':>9}{'종목평균 PR-AUC':>16}")
+print(f"{len(data)} observations ({data.symbol.nunique()} tickers, {data.start.min():%m-%d}~{data.start.max():%m-%d}), "
+      f"{y.sum()} bursts (rate {y.mean():.3f})\n")
+print(f"{'':9}{'PR-AUC(all)':>12}{'ROC-AUC':>9}{'mean-per-ticker PR-AUC':>23}")
 ap = {}
 for name, s in scores.items():
     ap[name] = per_ticker_ap(s)
-    print(f"{name:8}{average_precision_score(y, s):12.3f}{roc_auc_score(y, s):9.3f}{ap[name].mean():16.3f}")
-print(f"{'랜덤':8}{y.mean():12.3f}{0.5:9.3f}{rand:16.3f}  ← 기준선 (랜덤 200회)\n")
+    print(f"{name:9}{average_precision_score(y, s):12.3f}{roc_auc_score(y, s):9.3f}{ap[name].mean():23.3f}")
+print(f"{'random':9}{y.mean():12.3f}{0.5:9.3f}{rand:23.3f}  <- baseline (200 random draws)\n")
 
 t = pd.DataFrame(ap)
-t["그룹"] = np.where(t.index.isin(LARGE), "대형주", "개인인기주")
-print("그룹별 종목평균 PR-AUC")
-print(t.groupby("그룹")[list(SETS)].mean().round(3).to_string())
-win = t["댓글량"] > t["거래기록"]
-print(f"\n댓글량이 거래기록을 이긴 종목: {win.sum()}/{len(t)} → {', '.join(t.index[win])}")
-print("\n시간대별 PR-AUC (전체 종목 합침)")
+t["group"] = np.where(t.index.isin(LARGE), "large-cap", "retail")
+print("mean per-ticker PR-AUC by group")
+print(t.groupby("group")[list(SETS)].mean().round(3).to_string())
+win = t["comments"] > t["trading"]
+print(f"\ntickers where comments beat trading: {win.sum()}/{len(t)} -> {', '.join(t.index[win])}")
+print("\nPR-AUC by time slot (all tickers pooled)")
 for slot, grp in data.groupby("slot"):
     i = grp.index.values
-    print(f"  {slot} 블록 → 다음 봉: " + "  ".join(f"{n} {average_precision_score(y[i], scores[n][i]):.3f}" for n in SETS)
-          + f"  (급증 비율 {y[i].mean():.2f})")
+    print(f"  {slot} block -> next bar: " + "  ".join(f"{n} {average_precision_score(y[i], scores[n][i]):.3f}" for n in SETS)
+          + f"  (burst rate {y[i].mean():.2f})")
 
-# 5) 장외 블록의 개선(둘 다 - 거래기록)이 실적 발표 때문인지: 실적 블록을 빼고 다시 채점
-#    data/earnings.csv 만드는 법: uv run --no-project --with yfinance --with lxml (README 참고)
+# 5) is the overnight-block gain (both - trading) driven by earnings? re-score without earnings blocks
+#    data/earnings.csv comes from yfinance: uv run --no-project --with yfinance --with lxml (see README)
 earn = pd.read_csv(HERE / "data" / "earnings.csv")
 earn["time"] = pd.to_datetime(earn.time, utc=True).dt.tz_convert("America/New_York")
 night = data[data.slot == "15:30"]
-hit_strict = pd.Series(False, index=night.index)  # 그 밤에 실적이 나온 블록
-hit_wide = pd.Series(False, index=night.index)    # 실적 후 3일 안에 개장하는 블록까지
+hit_strict = pd.Series(False, index=night.index)  # blocks whose night contained an earnings release
+hit_wide = pd.Series(False, index=night.index)    # plus blocks opening within 3 days after earnings
 for _, e in earn.iterrows():
     m = night.symbol == e.symbol
     hit_strict |= m & (night.start < e.time) & (e.time < night.next_start + pd.Timedelta(hours=1))
@@ -126,8 +128,8 @@ for _, e in earn.iterrows():
 
 
 def gain_with_ci(idx, sc=scores, n_boot=1000):
-    """둘 다 - 거래기록 PR-AUC 차이와, 날짜 묶음 부트스트랩 95% 구간 (모델은 고정, 채점만 재표집)."""
-    gain = lambda i: average_precision_score(y[i], sc["둘 다"][i]) - average_precision_score(y[i], sc["거래기록"][i])
+    """both - trading PR-AUC gain, with a date-block bootstrap 95% interval (models fixed; only scoring is resampled)."""
+    gain = lambda i: average_precision_score(y[i], sc["both"][i]) - average_precision_score(y[i], sc["trading"][i])
     day = data.start.dt.date.values[idx]
     uniq = np.unique(day)
     r = np.random.default_rng(1)
@@ -135,23 +137,23 @@ def gain_with_ci(idx, sc=scores, n_boot=1000):
     return gain(idx), *np.percentile(boot, [2.5, 97.5])
 
 
-print("\n장외 블록(15:30 → 다음 날 9:30 봉): 댓글을 더했을 때 PR-AUC 개선")
-for label, keep in [("전체", hit_strict | True),("실적 밤 제외", ~hit_strict), ("실적 후 3일 제외", ~hit_wide)]:
+print("\novernight block (15:30 -> next day 9:30 bar): PR-AUC gain from adding comments")
+for label, keep in [("all", hit_strict | True), ("ex earnings night", ~hit_strict), ("ex 3 days post-earnings", ~hit_wide)]:
     idx = night.index.values[np.asarray(keep, dtype=bool)]
     g, lo, hi = gain_with_ci(idx)
-    print(f"  {label:10} 블록 {len(idx):4}개, 급증 {y[idx].sum():3}번 → 개선 {g:+.3f}  95% 구간 [{lo:+.3f}, {hi:+.3f}]")
+    print(f"  {label:24} {len(idx):4} blocks, {y[idx].sum():3} bursts -> gain {g:+.3f}  95% CI [{lo:+.3f}, {hi:+.3f}]")
 
-# 6) 평가 방식 비교 — 종목 빼기는 다른 종목의 '미래 날짜'로 학습하므로, 시간으로도 나눠 본다
-CUT = pd.Timestamp("2026-09-01", tz="America/New_York")  # 7~8월 학습, 9월 시험
+# 6) evaluation-scheme comparison: leave-ticker-out trains on other tickers' FUTURE dates, so also split by time
+CUT = pd.Timestamp("2026-09-01", tz="America/New_York")  # train Jul-Aug, test Sep
 past, future = (data.start < CUT).values, (data.start >= CUT).values
 syms = data.symbol.values
 schemes = {
-    "종목 빼기(기존)": [(syms != s, syms == s) for s in np.unique(syms)],
-    "시간 나누기": [(past, future)],
-    "시간+종목 둘 다": [(past & (syms != s), future & (syms == s)) for s in np.unique(syms)],
+    "leave-ticker-out": [(syms != s, syms == s) for s in np.unique(syms)],
+    "time split": [(past, future)],
+    "time + ticker": [(past & (syms != s), future & (syms == s)) for s in np.unique(syms)],
 }
-print(f"\n평가 방식 비교 (시간 나누기: {CUT:%m-%d} 이전 학습, 이후 시험)")
-print(f"  {'방식':14}{'거래기록':>8}{'댓글량':>8}{'둘 다':>8}{'랜덤':>7}   장외 개선(실적 밤 제외)")
+print(f"\nevaluation-scheme comparison (time split: train before {CUT:%m-%d}, test after)")
+print(f"  {'scheme':16}{'trading':>8}{'comments':>9}{'both':>8}{'random':>7}   overnight gain (ex earnings night)")
 for label, splits in schemes.items():
     sc = {}
     for name, cols in SETS.items():
@@ -160,8 +162,8 @@ for label, splits in schemes.items():
             m = make_pipeline(StandardScaler(), LogisticRegression()).fit(data.loc[tr, cols], y[tr])
             s[te] = m.predict_proba(data.loc[te, cols])[:, 1]
         sc[name] = s
-    ev = ~np.isnan(sc["거래기록"])
+    ev = ~np.isnan(sc["trading"])
     aps = "".join(f"{average_precision_score(y[ev], sc[n][ev]):8.3f}" for n in SETS)
     idx = night.index.values[(~hit_strict).values & ev[night.index.values]]
     g, lo, hi = gain_with_ci(idx, sc)
-    print(f"  {label:14}{aps}{y[ev].mean():7.3f}   {g:+.3f} [{lo:+.3f}, {hi:+.3f}] (장외 {len(idx)}블록)")
+    print(f"  {label:16}{aps}{y[ev].mean():7.3f}   {g:+.3f} [{lo:+.3f}, {hi:+.3f}] ({len(idx)} overnight blocks)")

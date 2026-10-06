@@ -1,12 +1,13 @@
-"""실험 7: 흐름이 꺾이기 전에 댓글이 먼저 돌아서나? (Morstatter 논문 실험 6 '리더 역전'의 주식판)
+"""Experiment 7: do comments turn before the trend flips? (stock version of the paper's experiment 6, "leader reversal")
 
-흐름(리더) = 종가가 20일 평균선 위면 상승(+1), 아래면 하락(-1)
-역전       = 내일 흐름 부호가 오늘과 달라짐 (평균선 돌파)
-리더 쪽 감정 = 흐름 부호 × 감정(종목 평소 대비). 음수 = 지금 흐름에 반대하는 분위기
-① 패턴: 역전 전날 vs 다른 날의 리더 쪽 감정 평균, 종목별 비교 + 이항검정 (평균선과의 거리를 맞춘 비교 포함)
-② 예측: 시장 상태(평균선 거리·최근 움직임) vs + 리더 쪽 감정, 7~8월 학습 → 9월 시험, PR-AUC
-하루 = 전 거래일 16:00 ET ~ 당일 16:00 ET, 댓글 5개 이상인 날 (실험 4~6과 같은 표본)
-실행: python3 exp7_reversal.py
+Trend (leader) = close above the 20-day moving average -> up (+1), below -> down (-1)
+Reversal       = tomorrow's trend sign differs from today's (the MA is crossed)
+Leader-side sentiment = trend sign x sentiment (vs the ticker's norm). Negative = mood opposing the current trend.
+(1) Pattern: mean leader-side sentiment on pre-reversal days vs other days, per ticker + binomial test
+    (including a comparison matched on distance to the MA)
+(2) Prediction: market state (distance to MA, recent moves) vs + leader-side sentiment; train Jul-Aug -> test Sep, PR-AUC
+A day = previous trading day 16:00 ET to 16:00 ET, days with >= 5 comments (same sample as experiments 4-6)
+Run: python3 exp7_reversal.py
 """
 import sqlite3
 from pathlib import Path
@@ -39,9 +40,9 @@ df = prices.sort_values(["symbol", "date"]).merge(daily, on=["symbol", "date"], 
 g = df.groupby("symbol").close
 df["ma"] = g.transform(lambda x: x.rolling(MA).mean())
 df["side"] = np.sign(df.close - df.ma)
-df["dist"] = (df.close / df.ma - 1).abs()  # 평균선에서 얼마나 멀리 있나 (가까우면 뚫리기 쉬움)
+df["dist"] = (df.close / df.ma - 1).abs()  # distance to the MA (closer = easier to cross)
 df["ret"] = g.pct_change()
-df["move_lead"] = df.side * df.ret  # 오늘 움직임이 흐름 방향이면 +
+df["move_lead"] = df.side * df.ret  # positive when today's move goes with the trend
 df["ret5_lead"] = df.side * g.transform(lambda x: x.pct_change(5))
 nxt = df.groupby("symbol").side.shift(-1)
 df["reversal"] = (nxt != df.side).astype(float).where(nxt.notna() & (df.side != 0))
@@ -51,42 +52,43 @@ df["lead_sent"] = df.side * df.sent_rel
 STATE = ["dist", "move_lead", "ret5_lead"]
 df = df[valid & (df.date >= START)].dropna(subset=STATE + ["lead_sent", "reversal"]).reset_index(drop=True)
 y = df.reversal.astype(int).values
-print(f"종목·하루 {len(df)}개, 역전 {y.sum()}번 ({y.mean():.1%})\n")
+print(f"{len(df)} ticker-days, {y.sum()} reversals ({y.mean():.1%})\n")
 
-# ① 패턴 — 역전 전날 리더 쪽 감정이 더 낮은가
+# (1) pattern — is leader-side sentiment lower the day before a reversal?
 pre, other = df[y == 1], df[y == 0]
-print("① 패턴: 리더 쪽 감정 평균 (음수 = 지금 흐름에 반대)")
-print(f"  역전 전날 {pre.lead_sent.mean():+.3f} ({len(pre)}일) / 다른 날 {other.lead_sent.mean():+.3f} ({len(other)}일)")
-for label, d in [("전체", df), ("평균선에서 먼 날만 (거리 상위 50%)", df[df.dist > df.dist.median()])]:
+print("(1) pattern: mean leader-side sentiment (negative = opposing the current trend)")
+print(f"  pre-reversal {pre.lead_sent.mean():+.3f} ({len(pre)} days) / other {other.lead_sent.mean():+.3f} ({len(other)} days)")
+for label, d in [("all", df), ("far from the MA only (top 50% distance)", df[df.dist > df.dist.median()])]:
     t = d.groupby(["symbol", "reversal"]).lead_sent.mean().unstack()
-    t = t[d.groupby("symbol").reversal.sum().reindex(t.index) >= 2].dropna()  # 역전 2번 이상인 종목만
+    t = t[d.groupby("symbol").reversal.sum().reindex(t.index) >= 2].dropna()  # tickers with >= 2 reversals only
     k = int((t[1.0] < t[0.0]).sum())
     p = binomtest(k, len(t), 0.5).pvalue if len(t) else float("nan")
-    print(f"  [{label}] 역전 전날이 더 부정적인 종목 {k}/{len(t)} (이항검정 p = {p:.3f}), 종목 안 차이 중앙값 {(t[1.0] - t[0.0]).median():+.3f}")
+    print(f"  [{label}] tickers more negative pre-reversal: {k}/{len(t)} (binomial p = {p:.3f}), median within-ticker diff {(t[1.0] - t[0.0]).median():+.3f}")
 
-# ② 예측 — 시장 상태에 리더 쪽 감정을 더하면 역전을 더 잘 맞히나
+# (2) prediction — does adding leader-side sentiment to market state improve reversal prediction?
 train, test = (df.date < CUT).values, (df.date >= CUT).values
 yt = y[test]
-print(f"\n② 예측: 9월 시험 {test.sum()}일, 역전 {yt.sum()}번 (기준 = 역전 비율 {yt.mean():.3f})")
+print(f"\n(2) prediction: Sep test {test.sum()} days, {yt.sum()} reversals (baseline = reversal rate {yt.mean():.3f})")
 tdays = np.unique(df.date[test])
 pos = {d: np.where(df.date.values[test] == d)[0] for d in tdays}
 rng = np.random.default_rng(0)
 picks = [np.concatenate([pos[d] for d in rng.choice(tdays, len(tdays))]) for _ in range(1000)]
 sc = {}
-for name, cols in {"시장 상태": STATE, "리더 쪽 감정만": ["lead_sent"], "시장 상태 + 감정": STATE + ["lead_sent"]}.items():
+for name, cols in {"market state": STATE, "leader-side sentiment": ["lead_sent"], "state + sentiment": STATE + ["lead_sent"]}.items():
     m = make_pipeline(StandardScaler(), LogisticRegression()).fit(df.loc[train, cols], y[train])
     sc[name] = m.predict_proba(df.loc[test, cols])[:, 1]
-    print(f"  {name:12} PR-AUC {average_precision_score(yt, sc[name]):.3f}  ROC-AUC {roc_auc_score(yt, sc[name]):.3f}")
-d = [average_precision_score(yt[i], sc["시장 상태 + 감정"][i]) - average_precision_score(yt[i], sc["시장 상태"][i])
+    print(f"  {name:22} PR-AUC {average_precision_score(yt, sc[name]):.3f}  ROC-AUC {roc_auc_score(yt, sc[name]):.3f}")
+d = [average_precision_score(yt[i], sc["state + sentiment"][i]) - average_precision_score(yt[i], sc["market state"][i])
      for i in picks if yt[i].any()]
-print(f"  감정 추가 효과 (PR-AUC) {np.mean(d):+.3f} [{np.percentile(d, 2.5):+.3f}, {np.percentile(d, 97.5):+.3f}]")
+print(f"  gain from sentiment (PR-AUC) {np.mean(d):+.3f} [{np.percentile(d, 2.5):+.3f}, {np.percentile(d, 97.5):+.3f}]")
 
-# 사후 점검: 감정은 그날 주가를 따라가므로(ρ 0.31), 역전 전날 '그날 움직임'으로 설명되는 부분을 뺀 뒤에도 남나
+# post-hoc check: sentiment follows same-day price (rho 0.31) — does the pattern survive after removing
+# the part explained by that day's move?
 from sklearn.linear_model import LinearRegression
 fit = LinearRegression().fit(df.loc[train, ["move_lead"]], df.lead_sent[train])
 df["lead_excess"] = df.lead_sent - fit.predict(df[["move_lead"]])
 t = df.groupby(["symbol", "reversal"]).lead_excess.mean().unstack()
 t = t[df.groupby("symbol").reversal.sum().reindex(t.index) >= 2].dropna()
 k = int((t[1.0] < t[0.0]).sum())
-print(f"\n[사후 점검] 그날 움직임을 뺀 리더 쪽 감정: 역전 전날 {df.lead_excess[y == 1].mean():+.3f} / 다른 날 {df.lead_excess[y == 0].mean():+.3f}")
-print(f"  역전 전날이 더 부정적인 종목 {k}/{len(t)} (이항검정 p = {binomtest(k, len(t), 0.5).pvalue:.3f})")
+print(f"\n[post-hoc] leader-side sentiment with the same-day move removed: pre-reversal {df.lead_excess[y == 1].mean():+.3f} / other {df.lead_excess[y == 0].mean():+.3f}")
+print(f"  tickers more negative pre-reversal: {k}/{len(t)} (binomial p = {binomtest(k, len(t), 0.5).pvalue:.3f})")
