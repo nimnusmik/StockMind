@@ -1,0 +1,27 @@
+10419 bars, 15 tickers | train 4869 (06-23~08-31) | test 5550 (09-01~11-13, 53 trading days)
+
+TEST PR-AUC (higher is better)
+  0.155  0 random (burst rate)
+  0.460  1 burst now -> burst next
+  0.637  2 this bar's volume
+  0.627  3 + price move
+  0.656  4 + memory
+  0.688  5 step 4, boosting
+
+gain of each step over the one before (95% CI; above 0 = the step helps)
+  2 this bar's volume        vs 1 burst now -> burst next  +0.177 [+0.153, +0.199]
+  3 + price move             vs 2 this bar's volume        -0.011 [-0.022, +0.000]
+  4 + memory                 vs 3 + price move             +0.029 [+0.003, +0.058]
+  5 step 4, boosting         vs 4 + memory                 +0.032 [+0.015, +0.048]
+
+step 4 logistic coefficients (standardized; bigger = matters more):
+  vol_rel -0.77, move_rel +0.42, last3 +1.27, day_sofar +0.87, next_slot_yday +0.28
+
+step 4 PR-AUC by the slot being left (15:30 = predicting tomorrow's open)
+  09:30 -> next bar: 0.752  (burst rate 0.17, this-bar-only 0.723)
+  10:30 -> next bar: 0.731  (burst rate 0.14, this-bar-only 0.711)
+  11:30 -> next bar: 0.678  (burst rate 0.15, this-bar-only 0.707)
+  12:30 -> next bar: 0.689  (burst rate 0.15, this-bar-only 0.686)
+  13:30 -> next bar: 0.624  (burst rate 0.15, this-bar-only 0.652)
+  14:30 -> next bar: 0.702  (burst rate 0.15, this-bar-only 0.621)
+  15:30 -> next bar: 0.497  (burst rate 0.19, this-bar-only 0.442)

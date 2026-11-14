@@ -1,0 +1,31 @@
+CONFIRMATION WINDOW: falling days after 2026-10-13
+falling days 113, period 2026-10-14 ~ 2026-11-09
+registered verdict metric: acc5, days 8-10, top quintile vs rest, date-block bootstrap 95% CI
+
+--- 5-day accumulated toxicity (REGISTERED) ---
+ day   n    rho    p  top-rest pp    lo   hi CI>0
+   1 113  0.042 0.66         1.09 -0.36 2.14     
+   2 110 -0.023 0.81         1.21 -0.85 2.94     
+   3 105 -0.007 0.94         0.84 -0.95 2.17     
+   4 102  0.150 0.13         1.80 -0.02 3.35     
+   5  99  0.179 0.08         2.72  0.40 5.40  YES
+   6  94  0.115 0.27         2.19 -0.68 5.71     
+   7  88  0.108 0.32         2.00 -1.24 6.21     
+   8  82  0.086 0.44         1.40 -1.77 5.26     
+   9  77  0.110 0.34         0.53 -3.23 5.20     
+  10  71  0.096 0.43         0.15 -4.19 5.84     
+
+--- 3-day accumulated toxicity (context) ---
+ day   n   rho    p  top-rest pp    lo   hi CI>0
+   1 113 0.164 0.08         1.62  0.34 3.05  YES
+   2 110 0.121 0.21         2.38  0.72 4.01  YES
+   3 105 0.152 0.12         2.78  1.09 4.44  YES
+   4 102 0.257 0.01         2.70  0.34 5.35  YES
+   5  99 0.278 0.01         2.49 -0.02 5.21     
+   6  94 0.217 0.04         3.17  0.29 6.01  YES
+   7  88 0.208 0.05         3.51  0.30 6.72  YES
+   8  82 0.166 0.14         3.39 -0.96 7.57     
+   9  77 0.151 0.19         2.06 -2.35 6.68     
+  10  71 0.093 0.44         1.10 -3.26 5.51     
+
+REGISTERED VERDICT (acc5 day 8,9,10 all CI>0): NOT CONFIRMED

@@ -1,0 +1,2 @@
+INVALID RE-RUN (2026-11-14): yfinance serves 30-minute bars for the last 59 days only, so the shared window now starts 09-14 and the fixed Sep 15 cut leaves ~1 day of training. Numbers discarded; the original README result stands.
+Fix idea (not done, would be a new design choice): build 30m/1h bars from data/prices_1m.csv.gz (covers 09-03 onward) and move the cut.

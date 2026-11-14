@@ -112,8 +112,8 @@ for title, (target, metric, sets) in PROBLEMS.items():
     syms, fut = d.symbol.values, (d.start >= CUT).values
     schemes = {"time split": [(~fut, fut)],
                "leave-ticker-out (ref)": [(syms != s, syms == s) for s in np.unique(syms)]}
-    print(f"\n{title}  — {len(d)} observations, positive rate {y.mean():.3f}, test (Sep) {fut.sum()}")
-    print(f"  {'features':28}" + "".join(f"{k:>24}" for k in schemes) + f"{'Sep overnight':>14}")
+    print(f"\n{title}  — {len(d)} observations, positive rate {y.mean():.3f}, test (Sep 1+) {fut.sum()}")
+    print(f"  {'features':28}" + "".join(f"{k:>24}" for k in schemes) + f"{'Sep 1+ overnight':>17}")
     res = {k: {n: predict(d, y, c, sp) for n, c in sets.items()} for k, sp in schemes.items()}
     night = fut & (d.slot == "15:30").values
     for n in sets:
@@ -124,9 +124,9 @@ for title, (target, metric, sets) in PROBLEMS.items():
     ts = res["time split"]
     day = d.start.dt.date.values
     for n in [k for k in sets if k.startswith("trading+")]:
-        for lbl, m in [("Sep all", fut), ("Sep overnight", night)]:
+        for lbl, m in [("Sep 1+ all", fut), ("Sep 1+ overnight", night)]:
             gch, lo, hi = gain_ci(y[m], ts[n][m], ts[base][m], metric, day[m])
             print(f"  {n} - trading ({lbl}): {gch:+.3f} [{lo:+.3f}, {hi:+.3f}]")
     if target == "up":
         acc = ((ts["trading+sentiment"][fut] > 0.5) == y[fut]).mean()
-        print(f"  accuracy (Sep, trading+sentiment) {acc:.3f} vs always guess the majority {max(y[fut].mean(), 1 - y[fut].mean()):.3f}")
+        print(f"  accuracy (Sep 1+, trading+sentiment) {acc:.3f} vs always guess the majority {max(y[fut].mean(), 1 - y[fut].mean()):.3f}")

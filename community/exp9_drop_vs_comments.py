@@ -25,6 +25,7 @@ Results (2026-10-05, Jul 15 - Oct 2):
 - PRE-REGISTERED RE-TEST: judge "NVDA 5-day excess after signals > similar-drop days" using
   ONLY data collected after 2026-10-05.
 """
+import os
 import sqlite3
 from pathlib import Path
 
@@ -36,7 +37,7 @@ WARMUP, BINS, SPLIT = 10, 5, "2026-09-01"
 
 # 1) posts -> trading day, stance (same pipeline as experiment 8)
 posts = pd.read_sql("SELECT uuid, symbol, created_at FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
-posts = posts.merge(pd.read_csv(HERE / "data" / "stance.csv"), on="uuid")
+posts = posts.merge(pd.read_csv(os.environ.get("STANCE_FILE", HERE / "data" / "stance.csv")), on="uuid")
 posts["op"] = posts[["bear", "neu", "bull"]].to_numpy().argmax(1)  # 0 bear, 1 neutral, 2 bull
 prices = pd.read_csv(HERE / "data" / "prices.csv", parse_dates=["date"])
 prices = prices[prices.date < pd.Timestamp.now().normalize()]

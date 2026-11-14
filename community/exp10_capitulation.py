@@ -33,6 +33,7 @@ Results (2026-10-05, 259 falling days, Jul 15 - Sep 25):
   "it's over") — and folk wisdom says bottoms come with capitulation, not anger.
   Next candidate = a surrender measure (experiment 11).
 """
+import os
 import sqlite3
 from pathlib import Path
 
@@ -45,7 +46,7 @@ WARMUP, BINS = 10, 5
 
 # 1) posts -> trading day, stance + toxicity (same pipeline as experiment 9)
 posts = pd.read_sql("SELECT uuid, symbol, created_at FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
-posts = posts.merge(pd.read_csv(HERE / "data" / "stance.csv"), on="uuid")
+posts = posts.merge(pd.read_csv(os.environ.get("STANCE_FILE", HERE / "data" / "stance.csv")), on="uuid")
 posts = posts.merge(pd.read_csv(HERE / "data" / "toxicity.csv", usecols=["uuid", "toxicity"]), on="uuid", how="left")
 posts["op"] = posts[["bear", "neu", "bull"]].to_numpy().argmax(1)
 prices = pd.read_csv(HERE / "data" / "prices.csv", parse_dates=["date"])

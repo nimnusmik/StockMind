@@ -1,0 +1,31 @@
+9268 observations (15 tickers, 07-09~11-13), 1367 bursts (rate 0.147)
+
+          PR-AUC(all)  ROC-AUC mean-per-ticker PR-AUC
+trading         0.610    0.857                  0.581
+comments        0.403    0.735                  0.439
+both            0.615    0.857                  0.600
+random          0.147    0.500                  0.156  <- baseline (200 random draws)
+
+mean per-ticker PR-AUC by group
+           trading  comments   both
+group                              
+large-cap    0.584     0.473  0.612
+retail       0.578     0.400  0.587
+
+tickers where comments beat trading: 2/15 -> NVDA, TSLA
+
+PR-AUC by time slot (all tickers pooled)
+  09:30 block -> next bar: trading 0.711  comments 0.440  both 0.665  (burst rate 0.16)
+  10:30 block -> next bar: trading 0.676  comments 0.381  both 0.675  (burst rate 0.14)
+  11:30 block -> next bar: trading 0.690  comments 0.383  both 0.673  (burst rate 0.14)
+  12:30 block -> next bar: trading 0.639  comments 0.384  both 0.618  (burst rate 0.13)
+  13:30 block -> next bar: trading 0.592  comments 0.366  both 0.588  (burst rate 0.15)
+  14:30 block -> next bar: trading 0.547  comments 0.368  both 0.568  (burst rate 0.15)
+  15:30 block -> next bar: trading 0.445  comments 0.512  both 0.553  (burst rate 0.17)
+
+
+evaluation-scheme comparison (time split: train before 09-01, test after)
+  scheme           trading comments    both random   (overnight column hidden: sealed re-test)
+  leave-ticker-out   0.610   0.403   0.615  0.147
+  time split         0.616   0.428   0.606  0.155
+  time + ticker      0.607   0.419   0.591  0.155

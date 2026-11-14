@@ -53,7 +53,7 @@ SETS = {"today's return": ["ex"], "sentiment": ["sent_rel"], "excess sentiment":
 day = df.date.values
 rng = np.random.default_rng(0)
 tdays = np.unique(day[test])
-print(f"{len(df)} ticker-days — train {train.sum()} (Jul-Aug), test {test.sum()} (Sep, {len(tdays)} trading days)")
+print(f"{len(df)} ticker-days — train {train.sum()} (Jul-Aug), test {test.sum()} (Sep 1+, {len(tdays)} trading days)")
 print(f"sentiment ~ today's-return slope {fit.coef_[0]:.2f} (training period)\n")
 print(f"{'features':26}{'ROC-AUC':>8}{'95% CI':>18}{'accuracy':>9}")
 for name, cols in SETS.items():
@@ -72,13 +72,13 @@ print(f"{'always guess the majority':26}{0.5:8.3f}{'':18}{max(y[test].mean(), 1 
 
 # 3) figure: tomorrow's return by excess-sentiment decile (train and test periods separately)
 INK, INK2, GRID, SURF = "#0b0b0b", "#52514e", "#e6e5e1", "#fcfcfb"
-COLORS = {"train (Jul-Aug)": "#2a78d6", "test (Sep)": "#d6762a"}
+COLORS = {"train (Jul-Aug)": "#2a78d6", "test (Sep 1+)": "#d6762a"}
 edges = np.quantile(df.loc[train, "excess"], np.linspace(0, 1, 11))  # bin edges from the training period only
 df["bin"] = np.clip(np.searchsorted(edges[1:-1], df.excess, side="right") + 1, 1, 10)
 fig, ax = plt.subplots(figsize=(9, 5), facecolor=SURF)
 ax.set_facecolor(SURF)
 ax.axhline(0, color=INK2, lw=1, ls=(0, (3, 3)))
-for (label, mask), dx in zip([("train (Jul-Aug)", train), ("test (Sep)", test)], [-0.12, 0.12]):
+for (label, mask), dx in zip([("train (Jul-Aug)", train), ("test (Sep 1+)", test)], [-0.12, 0.12]):
     m = df[mask].groupby("bin").ex_next.mean() * 100
     ax.plot(m.index + dx, m.values, color=COLORS[label], lw=2, marker="o", ms=8, mec=SURF, mew=2, label=label)
 ax.set_xticks(range(1, 11))

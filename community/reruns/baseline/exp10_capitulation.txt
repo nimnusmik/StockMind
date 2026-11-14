@@ -1,0 +1,34 @@
+falling days 300 / all 875, period 2026-07-14 ~ 2026-10-06
+bin 0 = least rage, 4 = most. next5 = next-5-day cumulative excess return; bottom_rate = no lower close within 5 days
+
+=== toxicity — falling days split into toxicity quintiles ===
+   days  drop_pct  next5_pct  bottom_rate
+q                                        
+0    60      -4.6       1.36         0.23
+1    60      -4.6       1.42         0.30
+2    60      -4.4       0.90         0.28
+3    60      -3.9       0.88         0.38
+4    60      -4.3       0.99         0.18
+monotonicity (Spearman) rho=-0.061 (p=0.29) / top bin - rest next5 diff -0.15pp [-2.02, +1.61]
+
+=== bear tilt — falling days split into bear tilt quintiles ===
+   days  drop_pct  next5_pct  bottom_rate
+q                                        
+0    60      -3.8       1.91         0.25
+1    60      -4.6       2.15         0.28
+2    60      -3.9       0.61         0.35
+3    60      -5.0       0.60         0.27
+4    60      -4.6       0.27         0.23
+monotonicity (Spearman) rho=-0.160 (p=0.01) / top bin - rest next5 diff -1.05pp [-2.77, +1.00]
+
+=== heat (post count) — falling days split into heat (post count) quintiles ===
+   days  drop_pct  next5_pct  bottom_rate
+q                                        
+0    60      -3.2       0.45         0.33
+1    60      -3.9       0.53         0.25
+2    60      -3.7       0.16         0.18
+3    60      -5.3       2.36         0.22
+4    60      -5.7       2.03         0.40
+monotonicity (Spearman) rho=+0.100 (p=0.08) / top bin - rest next5 diff +1.15pp [-0.67, +3.21]
+
+[Reference: Sep 1+ only, toxicity] falling days 121, top-rest -1.70pp [-3.43, +0.05], rho=-0.034

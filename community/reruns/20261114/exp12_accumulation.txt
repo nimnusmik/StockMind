@@ -1,0 +1,30 @@
+falling days 422 / all 1251, period 2026-07-16 ~ 2026-11-12
+dose = accumulated rage (rolling mean of toxicity vs own baseline), top quintile vs rest
+c-k = cumulative excess return over the next k trading days
+
+=== 3-day accumulated toxicity (primary) ===
+ day   n    rho    p  top-rest pp    lo   hi CI>0
+   1 422  0.039 0.42         0.62 -0.10 1.39     
+   2 414 -0.018 0.72         0.68 -0.34 1.70     
+   3 409 -0.009 0.86         0.76 -0.58 2.39     
+   4 404  0.012 0.81         0.75 -0.62 2.28     
+   5 401  0.029 0.57         1.25 -0.33 3.00     
+   6 396 -0.015 0.77         1.33 -0.28 3.02     
+   7 393  0.002 0.97         2.10  0.30 3.93  YES
+   8 390 -0.003 0.95         2.18  0.32 4.21  YES
+   9 385  0.033 0.51         2.60  0.36 4.91  YES
+  10 379  0.050 0.33         2.56  0.35 4.72  YES
+
+=== 5-day accumulated toxicity ===
+ day   n   rho    p  top-rest pp    lo   hi CI>0
+   1 409 0.029 0.56         0.62 -0.13 1.38     
+   2 401 0.021 0.67         0.72 -0.35 1.79     
+   3 396 0.015 0.76         0.87 -0.40 2.20     
+   4 391 0.066 0.20         1.32  0.10 2.62  YES
+   5 388 0.068 0.18         1.92  0.56 3.42  YES
+   6 383 0.041 0.43         1.69  0.29 3.14  YES
+   7 380 0.039 0.45         2.20  0.53 3.88  YES
+   8 377 0.042 0.42         2.30  0.42 4.26  YES
+   9 372 0.049 0.34         2.70  0.71 4.65  YES
+  10 366 0.061 0.25         2.41  0.24 4.57  YES
+

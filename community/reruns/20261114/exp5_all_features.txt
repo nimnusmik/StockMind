@@ -1,0 +1,13 @@
+1313 ticker-days — train 544 (Jul-Aug), test 769 (Sep, 52 trading days), up to 18 features
+share of up days: train 0.472, test 0.488
+
+feature set                k  logistic ROC           95% CI  boosting ROC           95% CI
+trading                    4        0.481   [0.427, 0.533]        0.478   [0.439, 0.518]
+comments                   2        0.501   [0.459, 0.546]        0.532   [0.487, 0.580]
+sentiment                  5        0.477   [0.427, 0.525]        0.507   [0.468, 0.546]
+toxicity                   7        0.511   [0.471, 0.549]        0.493   [0.454, 0.533]
+all comment features      14        0.515   [0.470, 0.558]        0.515   [0.478, 0.553]
+everything                18        0.524   [0.481, 0.570]        0.489   [0.451, 0.527]
+
+baseline: 0.500 = coin flip. If the CI contains 0.5, we cannot claim it predicts.
+6 sets x 2 models = 12 tests -> one may look good by chance

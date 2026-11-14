@@ -1,0 +1,28 @@
+
+A. volume burst (PR-AUC)  — 9268 observations, positive rate 0.147, test (Sep) 5550
+  features                                  time split  leave-ticker-out (ref) Sep overnight
+  trading                                        0.616                   0.610         0.407
+  comments                                       0.428                   0.403         0.469
+  sentiment                                      0.186                   0.160         0.244
+  comments+sentiment                             0.434                   0.408         0.470
+  trading+comments                               0.606                   0.615         0.521
+  trading+comments+sentiment                     0.607                   0.615         0.521
+  random baseline                                0.155
+  trading+comments - trading (Sep all): -0.010 [-0.034, +0.014]
+  trading+comments - trading (Sep overnight): +0.114 [+0.035, +0.188]
+  trading+comments+sentiment - trading (Sep all): -0.009 [-0.034, +0.016]
+  trading+comments+sentiment - trading (Sep overnight): +0.114 [+0.031, +0.189]
+
+B. price direction (ROC-AUC)  — 9206 observations, positive rate 0.485, test (Sep) 5516
+  features                                  time split  leave-ticker-out (ref) Sep overnight
+  trading                                        0.489                   0.494         0.506
+  comments                                       0.504                   0.498         0.510
+  sentiment                                      0.499                   0.482         0.492
+  trading+sentiment                              0.495                   0.490         0.497
+  trading+comments+sentiment                     0.499                   0.495         0.509
+  random baseline                                0.500
+  trading+sentiment - trading (Sep all): +0.006 [-0.013, +0.026]
+  trading+sentiment - trading (Sep overnight): -0.009 [-0.066, +0.048]
+  trading+comments+sentiment - trading (Sep all): +0.010 [-0.009, +0.030]
+  trading+comments+sentiment - trading (Sep overnight): +0.003 [-0.064, +0.078]
+  accuracy (Sep, trading+sentiment) 0.505 vs always guess the majority 0.523

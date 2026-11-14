@@ -27,6 +27,7 @@ excess returns +/-5 trading days around it. (Do NOT align on the day the tilt *e
 anchor chosen with future information.)
 Run: python3 exp8_contrarian.py -> figures/contrarian_nvda.png
 """
+import os
 import sqlite3
 from math import comb
 from pathlib import Path
@@ -41,7 +42,7 @@ MAIN, WARMUP, WIN, SPLIT, NS, MIN_SIG = "NVDA", 10, 5, "2026-09-01", range(1, 8)
 
 # 1) posts -> trading day, attach stance (day boundary matches plot_sentiment_deciles.py)
 posts = pd.read_sql("SELECT uuid, symbol, created_at FROM posts", sqlite3.connect(HERE / "data" / "community.db"))
-posts = posts.merge(pd.read_csv(HERE / "data" / "stance.csv"), on="uuid")
+posts = posts.merge(pd.read_csv(os.environ.get("STANCE_FILE", HERE / "data" / "stance.csv")), on="uuid")
 posts["op"] = posts[["bear", "neu", "bull"]].to_numpy().argmax(1)  # 0 bear, 1 neutral, 2 bull
 prices = pd.read_csv(HERE / "data" / "prices.csv", parse_dates=["date"])
 prices = prices[prices.date < pd.Timestamp.now().normalize()]  # drop today's intraday price

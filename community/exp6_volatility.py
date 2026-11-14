@@ -88,7 +88,7 @@ pos = {d: np.where(df.date.values[test] == d)[0] for d in tdays}
 rng = np.random.default_rng(0)
 picks = [np.concatenate([pos[d] for d in rng.choice(tdays, len(tdays))]) for _ in range(1000)]
 
-print(f"{len(df)} ticker-days — train {train.sum()} (Jul-Aug), test {test.sum()} (Sep, {len(tdays)} trading days)\n")
+print(f"{len(df)} ticker-days — train {train.sum()} (Jul-Aug), test {test.sum()} (Sep 1+, {len(tdays)} trading days)\n")
 print(f"{'model':16}{'QLIKE':>8}{'log MSE':>10}   QLIKE vs HAR (negative = better) 95% CI")
 q_har = qlike(yt, preds["HAR (baseline)"])
 print(f"{'tomorrow=today':16}{qlike(yt, naive).mean():8.3f}{np.mean((yt - naive) ** 2):10.3f}")

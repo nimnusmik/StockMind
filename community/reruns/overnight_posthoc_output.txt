@@ -1,0 +1,27 @@
+POST-HOC checks on the primary sample (after Oct 5, ex earnings night). Not part of the registered verdict.
+
+PR-AUC: trading 0.365 | +comments 0.461 | trading+gap 0.465 | trading+gap+comments 0.518 | random 0.159
+registered statistic again      : +0.096 [+0.019, +0.185]
+comments on top of trading+gap  : +0.053 [-0.007, +0.116]
+gap on top of trading           : +0.100 [+0.030, +0.164]
+
+leave one ticker out (registered statistic):
+  without AAPL  +0.099   (4 bursts in AAPL)
+  without AMC   +0.095   (0 bursts in AMC)
+  without AMZN  +0.109   (7 bursts in AMZN)
+  without COIN  +0.088   (2 bursts in COIN)
+  without GME   +0.116   (8 bursts in GME)
+  without GOOG  +0.098   (7 bursts in GOOG)
+  without HOOD  +0.089   (0 bursts in HOOD)
+  without META  +0.084   (6 bursts in META)
+  without MSFT  +0.098   (2 bursts in MSFT)
+  without NFLX  +0.094   (6 bursts in NFLX)
+  without NVDA  +0.061   (9 bursts in NVDA)
+  without PLTR  +0.101   (2 bursts in PLTR)
+  without RIVN  +0.107   (3 bursts in RIVN)
+  without SOFI  +0.087   (4 bursts in SOFI)
+  without TSLA  +0.093   (7 bursts in TSLA)
+
+by half of the sealed window:
+  before 2026-10-23  207 blocks 23 bursts  +0.027 [-0.058, +0.120]
+  from 2026-10-23    215 blocks 44 bursts  +0.120 [+0.022, +0.263]

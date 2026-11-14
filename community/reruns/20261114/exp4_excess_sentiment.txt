@@ -1,0 +1,11 @@
+1313 ticker-days — train 544 (Jul-Aug), test 769 (Sep, 52 trading days)
+sentiment ~ today's-return slope 1.37 (training period)
+
+features                   ROC-AUC            95% CI accuracy
+today's return               0.458   [0.403, 0.514]    0.512
+sentiment                    0.544   [0.498, 0.588]    0.512
+excess sentiment             0.449   [0.407, 0.492]    0.512
+excess + today's return      0.449   [0.392, 0.502]    0.503
+always guess the majority    0.500                      0.512
+
+saved: figures/excess_sentiment.png  (a reversal would show high on the left, low on the right)

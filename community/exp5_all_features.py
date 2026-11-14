@@ -96,7 +96,7 @@ pos = {d: np.where(df.date.values[test] == d)[0] for d in tdays}
 rng = np.random.default_rng(0)
 picks = [np.concatenate([pos[d] for d in rng.choice(tdays, len(tdays))]) for _ in range(1000)]
 
-print(f"{len(df)} ticker-days — train {train.sum()} (Jul-Aug), test {test.sum()} (Sep, {len(tdays)} trading days), up to {len(SETS['everything'])} features")
+print(f"{len(df)} ticker-days — train {train.sum()} (Jul-Aug), test {test.sum()} (Sep 1+, {len(tdays)} trading days), up to {len(SETS['everything'])} features")
 print(f"share of up days: train {y[train].mean():.3f}, test {y[test].mean():.3f}\n")
 print(f"{'feature set':24}{'k':>4}" + "".join(f"{m + ' ROC':>14}{'95% CI':>17}" for m in MODELS))
 yt = y[test]

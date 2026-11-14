@@ -1,0 +1,9 @@
+exp1 overnight re-test, opened 2026-11-14. model trained before 2026-09-01 (3718 blocks); data through 2026-11-13
+statistic = PR-AUC(trading+comments) - PR-AUC(trading), date-block bootstrap 95% CI (1000 draws)
+
+  PRIMARY  after Oct 5, ex earnings night       422 blocks  67 bursts  gain +0.096 [+0.019, +0.185]
+  secondary after Oct 5, all nights             435 blocks  80 bursts  gain +0.154 [+0.059, +0.261]
+  secondary after Oct 5, ex 3 days post-earnings  395 blocks  59 bursts  gain +0.097 [+0.018, +0.186]
+  reference Sep 1 - Oct 4, ex earnings night    344 blocks  68 bursts  gain +0.021 [-0.088, +0.120]
+
+REGISTERED VERDICT (primary CI lower bound > 0): CONFIRMED

@@ -1,0 +1,4 @@
+falling days 409, period 2026-07-20 ~ 2026-11-12
+observed max top-rest = +2.57pp (over 2 measures x 10 horizons)
+permutation null (1000 date-permutations): median +1.79pp, 95th pct +4.37pp
+global p = 0.277  ->  FAILS: a scan this size produces a drift this large by chance

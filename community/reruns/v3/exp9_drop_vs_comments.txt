@@ -1,0 +1,18 @@
+period 2026-07-14 ~ 2026-10-13
+raw_diff = signal - non-signal days / drop_matched_diff = within similar-drop days (the comments' share)
+
+            sample     outcome  signal_days  raw_diff_pct  drop_matched_diff_pct           ci95
+  15 tickers, full    next day          140          0.15                  -0.02 [-0.63, +0.64]
+  15 tickers, full next 5 days          140          1.66                   1.36 [-0.16, +2.85]
+15 tickers, Sep 1+    next day           48          0.06                  -0.21 [-1.03, +0.53]
+15 tickers, Sep 1+ next 5 days           48         -0.12                  -0.57 [-2.11, +0.91]
+        NVDA, full    next day           15          0.86                   0.70 [-0.92, +2.40]
+        NVDA, full next 5 days           15          4.91                   3.26 [+0.97, +5.78]
+
+signal rate by drop quintile (0 = deepest drop):
+bin
+0    0.32
+1    0.16
+2    0.09
+3    0.07
+4    0.09

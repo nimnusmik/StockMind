@@ -1,0 +1,15 @@
+1313 ticker-days, 163 reversals (12.4%)
+
+(1) pattern: mean leader-side sentiment (negative = opposing the current trend)
+  pre-reversal +0.001 (163 days) / other +0.029 (1150 days)
+  [all] tickers more negative pre-reversal: 12/15 (binomial p = 0.035), median within-ticker diff -0.030
+  [far from the MA only (top 50% distance)] tickers more negative pre-reversal: 1/2 (binomial p = 1.000), median within-ticker diff -0.007
+
+(2) prediction: Sep test 769 days, 100 reversals (baseline = reversal rate 0.130)
+  market state           PR-AUC 0.399  ROC-AUC 0.849
+  leader-side sentiment  PR-AUC 0.155  ROC-AUC 0.553
+  state + sentiment      PR-AUC 0.392  ROC-AUC 0.847
+  gain from sentiment (PR-AUC) -0.008 [-0.034, +0.019]
+
+[post-hoc] leader-side sentiment with the same-day move removed: pre-reversal -0.007 / other +0.012
+  tickers more negative pre-reversal: 12/15 (binomial p = 0.035)

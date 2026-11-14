@@ -1,0 +1,9 @@
+exp9 NVDA 5-day bounce re-test, opened 2026-11-14. Sample: date > 2026-10-05 with a complete outcome.
+drop_matched = signal-day mean minus non-signal-day mean within the same drop quintile (pp of excess return)
+
+  PRIMARY   NVDA, next 5 days            days   24 signals  10  raw -2.73  drop_matched -3.90 [-8.28, +3.78]
+  secondary NVDA, next day               days   28 signals  14  raw -0.35  drop_matched -1.03 [-2.95, +1.12]
+  secondary 15 tickers, next 5 days      days  360 signals  75  raw -0.33  drop_matched +0.11 [-1.65, +1.92]
+  secondary 15 tickers, next day         days  420 signals  80  raw +0.14  drop_matched +0.15 [-0.90, +1.04]
+
+REGISTERED VERDICT (primary CI lower bound > 0): NOT CONFIRMED

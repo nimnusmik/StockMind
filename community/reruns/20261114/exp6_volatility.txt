@@ -1,0 +1,17 @@
+1313 ticker-days — train 544 (Jul-Aug), test 769 (Sep, 52 trading days)
+
+model              QLIKE   log MSE   QLIKE vs HAR (negative = better) 95% CI
+tomorrow=today     0.497     0.789
+HAR (baseline)     0.305     0.531
+HAR + comments     0.305     0.535   +0.0003 [-0.0069, +0.0078]
+HAR + sentiment    0.309     0.526   +0.0037 [+0.0010, +0.0065]
+HAR + toxicity     0.305     0.533   -0.0004 [-0.0014, +0.0005]
+HAR + all          0.308     0.534   +0.0031 [-0.0053, +0.0117]
+
+'HAR + all' coefficients (training period): lv +0.058, lv_w +0.246, lv_m +0.643, com_rel -0.166, auth_rel +0.328, sent_rel +0.082, neg_share +0.282, hostility -0.006
+
+[post-hoc] removed 60 earnings +/- 2 day rows from training (train 484)
+  HAR + comments   vs HAR -0.0039 [-0.0073, -0.0005]
+  HAR + sentiment  vs HAR +0.0037 [+0.0012, +0.0064]
+  HAR + toxicity   vs HAR -0.0006 [-0.0016, +0.0005]
+  HAR + all        vs HAR -0.0014 [-0.0046, +0.0020]

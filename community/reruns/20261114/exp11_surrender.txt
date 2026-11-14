@@ -1,0 +1,14 @@
+  posts["sur"] = clean.str.contains(SURRENDER).astype(float)
+posts with surrender language: 1198 / 128410 (0.9%)
+falling days 409, period 2026-07-14 ~ 2026-11-06
+bin 0 = least surrender, 4 = most. surrender_pp = surrender-post share vs the ticker's usual (pp)
+
+   days  drop_pct  surrender_pp  next5_pct  bottom_rate
+q                                                      
+0    82      -3.8         -1.35      -0.64         0.16
+1    82      -3.8         -0.71       0.63         0.24
+2    81      -5.0         -0.31       0.98         0.28
+3    82      -6.2          0.38       0.90         0.30
+4    82      -4.3          2.46      -0.13         0.26
+monotonicity (Spearman) rho=+0.030 (p=0.54) / top bin - rest next5 diff -0.59pp [-2.30, +0.98]
+[Reference: Sep 1+ only] falling days 242, top-rest -0.36pp [-2.58, +1.57], rho=+0.064

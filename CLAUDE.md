@@ -21,8 +21,11 @@ Long-term goal: compare the human crowd against an AI crowd (multiple LLM agents
   - `stance.py` — per-post bull/bear/neutral stance (FinTwitBERT) -> `data/stance.csv` (78% vs 59% for the mood model
     on a hand-labelled 50-post key in `data/stance/key50.tsv`)
   - `toxicity.py` — per-post toxicity (Detoxify) -> `data/toxicity.csv`
-  - `exp1_*` .. `exp11_*`, `plot_*.py` — experiments (stock versions of Morstatter 2026 "The Conversation Turns First",
-    plus contrarian/capitulation tests). Performance claims use time-split results.
+  - `earnings.py` — earnings release times (all seasons in the window) -> `data/earnings.csv`
+  - `embed.py` — per-post sentence embeddings (all-MiniLM-L6-v2) -> `data/embeddings.npy` + `data/embeddings_uuid.csv`
+  - `exp1_*` .. `exp16_*`, `plot_*.py` — experiments (stock versions of Morstatter 2026 "The Conversation Turns First",
+    plus contrarian/capitulation tests, a trading-only ladder (15) and similar-day retrieval (16)).
+    Performance claims use time-split results. Latest full re-run: `reruns/20261114/`.
   - `data/export/` — CSV snapshots for spreadsheets
 - **docs/** — internal notes (Korean; NEVER commit — contains contact info and email drafts)
 - **legacy/** — the old StockMind app (FastAPI, Next.js, news pipeline, Playwright crawler) and July 2025 data.
@@ -45,5 +48,10 @@ python3 prices.py              # refresh prices
 - Performance claims only after a time split, t -> t+1 targets, and baseline comparisons ("always HOLD", random).
 - Unofficial API: keep the request interval (`DELAY`). Never publish raw posts (`data/` is git-ignored).
 - Code comments and README in English (public repo); internal docs (docs/) in Korean.
-- Pre-registered re-tests pending (judge on data collected after 2026-10-05 only):
-  the overnight comment effect (exp 1) and the NVDA 5-day post-signal bounce (exp 9).
+- Pre-registered re-tests (judge on data collected after 2026-10-05 only):
+  the overnight comment effect (exp 1): OPENED 2026-11-14, CONFIRMED (+0.096 [+0.019, +0.185], ex earnings night;
+  rule in community/reruns/PREREG_overnight.md, post-hoc caveats in reruns/overnight_posthoc_output.txt).
+  the NVDA 5-day post-signal bounce (exp 9): OPENED 2026-11-14, NOT CONFIRMED (-3.90pp [-8.28, +3.78], 10 signal days;
+  rule in community/reruns/PREREG_exp9_nvda.md). No registered re-test is pending now.
+  Exp 12 (accumulated toxicity -> 8-10 day bounce): judge on data collected after 2026-10-13 only.
+- `data/earnings.csv` must hold every earnings release in the window: refresh with `earnings.py` before any overnight analysis.
